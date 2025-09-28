@@ -33,7 +33,7 @@ cd ovoscan-pipeline
 
 2. **Pull the Dataset (DVC):**
 ```bash
-# Downloads the specific image version used for the 99.9% accuracy model
+# Downloads the specific image version used for the 86% accuracy model
 dvc pull
 ```
 
