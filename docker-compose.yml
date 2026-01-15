@@ -1,0 +1,33 @@
+
+
+services:
+  # The Backend API
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: ovoscan_api
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./serving:/app/serving  # Map model weights so we can update them without rebuilding
+      - ./data:/app/data        # Map knowledge base
+    environment:
+      - OLLAMA_HOST=http://localhost:11434
+    network_mode: "host"        # Allows access to local GPU/Ollama
+    restart: always
+
+  # The Frontend Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    container_name: ovoscan_dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://localhost:8001/predict
+    network_mode: "host"
+    depends_on:
+      - api
+    restart: always
