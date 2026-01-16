@@ -1,33 +1,63 @@
-
+version: '3.8'
 
 services:
-  # The Backend API
+  # 1. BRAIN (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ovoscan_ollama
+    # 🟢 HOST MODE: Binds directly to your laptop's port 11434
+    network_mode: "host"
+    volumes:
+      - ollama_storage:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: always
+
+  # 2. API (YOLO Logic)
   api:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
     container_name: ovoscan_api
-    ports:
-      - "8001:8001"
     volumes:
-      - ./serving:/app/serving  # Map model weights so we can update them without rebuilding
-      - ./data:/app/data        # Map knowledge base
+      - ./serving:/app/serving
+      - ./data:/app/data
+      - ~/.cache/huggingface:/root/.cache/huggingface
     environment:
+      # 🟢 NOW 'localhost' WORKS because we are in host mode!
       - OLLAMA_HOST=http://localhost:11434
-    network_mode: "host"        # Allows access to local GPU/Ollama
+    # 🟢 HOST MODE: Binds directly to your laptop's port 8001
+    network_mode: "host"
+    depends_on:
+      - ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     restart: always
 
-  # The Frontend Dashboard
+  # 3. DASHBOARD (UI)
   dashboard:
     build:
       context: .
       dockerfile: docker/Dockerfile.dashboard
     container_name: ovoscan_dashboard
-    ports:
-      - "8501:8501"
     environment:
+      # 🟢 NOW 'localhost' WORKS here too!
       - API_URL=http://localhost:8001/predict
+    # 🟢 HOST MODE: Binds directly to your laptop's port 8501
     network_mode: "host"
     depends_on:
       - api
     restart: always
+
+volumes:
+  ollama_storage:

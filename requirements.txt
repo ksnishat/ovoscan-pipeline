@@ -1,0 +1,21 @@
+zenml
+ultralytics
+pandas
+numpy
+scikit-learn
+minio
+bentoml
+fastapi
+uvicorn
+streamlit
+evidently
+pyyaml
+# RAG Stack
+langchain==0.3.0
+langchain-community==0.3.0
+langchain-huggingface==0.1.0
+langchain-chroma
+chromadb
+sentence-transformers
+pypdf
+ollama

@@ -1,5 +1,6 @@
 import io
 import os
+import torch  # <--- NEW IMPORT
 from fastapi import FastAPI, File, UploadFile
 from PIL import Image
 from ultralytics import YOLO
@@ -17,24 +18,41 @@ agent = None
 async def lifespan(app: FastAPI):
     """
     Load heavy AI models only once when the server starts.
+    Includes intelligent hardware detection (CPU vs GPU).
     """
     global model, agent
     
-    # 1. Load YOLO Model
-    print(" Loading YOLOv8 Model...")
+    # ---------------------------------------------------------
+    # 1. HARDWARE CHECK (The Fallback Logic)
+    # ---------------------------------------------------------
+    if torch.cuda.is_available():
+        device = "cuda"
+        gpu_name = torch.cuda.get_device_name(0)
+        print(f" GPU DETECTED: {gpu_name}")
+        print(" System is running in ACCELERATED mode.")
+    else:
+        device = "cpu"
+        print(" NO GPU DETECTED.")
+        print(" System is falling back to CPU mode.")
+    # ---------------------------------------------------------
+
+    # 2. Load YOLO Model
+    print(f" Loading YOLOv8 Model on {device.upper()}...")
     model_path = "serving/model.pt"
     if os.path.exists(model_path):
         model = YOLO(model_path)
     else:
-        # Fallback if training wasn't run
         print(" Training weights not found, using default...")
         model = YOLO("yolov8n-cls.pt")
         
-    # 2. Load RAG Agent
+    # 3. Load RAG Agent
     print(" Initializing Hatchery Knowledge Agent...")
     kb_path = "data/knowledge_base/manual.txt"
-    agent = HatcheryAgent(kb_path)
-    agent.ingest_knowledge()
+    if os.path.exists(kb_path):
+        agent = HatcheryAgent(kb_path)
+        agent.ingest_knowledge()
+    else:
+        print(" Knowledge base not found. RAG functionality disabled.")
     
     yield
     
@@ -45,7 +63,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="OvoScan AI Inference Service",
     description="Industrial Defect Detection API with RAG Reporting",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan
 )
 
@@ -64,6 +82,8 @@ async def predict(file: UploadFile = File(...)):
         image = Image.open(io.BytesIO(contents))
         
         # 2. Inference
+        # YOLO automatically uses the device detected at load time, 
+        # but explicit checks are handled internally by Ultralytics.
         results = model.predict(image, conf=0.5)
         result = results[0]
         
@@ -75,7 +95,7 @@ async def predict(file: UploadFile = File(...)):
         report = "N/A"
         if top_class_name == "fertile":
             report = " Quality Standard Met. Ready for incubation."
-        else:
+        elif agent:
             # Ask the LLM why this is bad
             print(f" Defect Detected ({top_class_name}). Consulting Manual...")
             report = agent.analyze_defect(top_class_name)
@@ -84,7 +104,7 @@ async def predict(file: UploadFile = File(...)):
             "filename": file.filename,
             "prediction": top_class_name,
             "confidence": round(confidence, 4),
-            "technical_report": report,  # <--- NEW FIELD
+            "technical_report": report,
             "status": "success"
         }
         

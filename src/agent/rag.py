@@ -63,7 +63,7 @@ class HatcheryAgent:
             "and what is the required ACTION?"
         )
         
-        print(f"❓ Asking Agent: {query}")
+        print(f" Asking Agent: {query}")
         response = self.qa_chain.invoke(query)
         return response['result']
 
