@@ -1,0 +1,221 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # 1. OLLAMA (LLM Service) - GPU Support
+  # ==========================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ovoscan_ollama
+    network_mode: "bridge"
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - ovoscan-network
+
+  # ==========================================
+  # 2. API (FastAPI with YOLOv8)
+  # ==========================================
+  api:
+    image: ghcr.io/ovoscan/api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: ovoscan_api
+    command: uvicorn src.app:app --host 0.0.0.0 --port 8000 --workers 2
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./serving:/app/serving
+      - ./data:/app/data
+      - ./models:/app/models
+      - ovoscan_dvc:/app/.dvc
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2
+      - CONFIDENCE_THRESHOLD=0.25
+      - ENABLE_RAG=true
+      - ENABLE_METRICS=true
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - ovoscan-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ==========================================
+  # 3. DASHBOARD (Plotly Dash - Modern Enterprise UI)
+  # ==========================================
+  dash:
+    image: ghcr.io/ovoscan/api:latest
+    container_name: ovoscan_dash
+    command: python -m src.dash_app.app
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./src:/app/src
+    environment:
+      - API_URL=http://api:8000
+      - DASH_PORT=8050
+      - DASH_DEBUG=false
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/_dash-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ovoscan-network
+
+  # ==========================================
+  # 4. LEGACY FRONTEND (Streamlit)
+  # ==========================================
+  streamlit:
+    image: ghcr.io/ovoscan/api:latest
+    container_name: ovoscan_streamlit
+    command: streamlit run src/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./src:/app/src
+    environment:
+      - API_URL=http://api:8000
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ovoscan-network
+
+  # ==========================================
+  # 5. MLflow (Experiment Tracking)
+  # ==========================================
+  mlflow:
+    image: ghcr.io/ovoscan/mlflow:latest
+    container_name: ovoscan_mlflow
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - BACKEND_STORE_URI=sqlite:///mlflow.db
+      - DEFAULT_ARTIFACT_ROOT=/mlruns
+    volumes:
+      - mlflow_data:/mlruns
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - ovoscan-network
+
+  # ==========================================
+  # 6. MONITORING (Prometheus + Grafana)
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ovoscan_prometheus
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ovoscan-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ovoscan_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=ovoscan
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - ovoscan-network
+
+networks:
+  ovoscan-network:
+    driver: bridge
+
+volumes:
+  ollama_storage:
+  ovoscan_dvc:
+  mlflow_data:
+  prometheus_data:
+  grafana_data:
