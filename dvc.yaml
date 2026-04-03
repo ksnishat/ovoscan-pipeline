@@ -1,0 +1,96 @@
+# DVC Pipeline for OvoScan
+# Bronze → Silver → Gold quality inspection pipeline
+
+stages:
+  # === BRONZE LAYER: Raw data ingestion ===
+  extract_bronze:
+    cmd: python src/scripts/extract_bronze.py
+    deps:
+      - src/scripts/extract_bronze.py
+    outs:
+      - data/bronze/images_raw.dvc
+      - data/bronze/metadata.dvc
+    desc: Collect raw quality inspection images (bronze layer)
+
+  # === BRONZE → SILVER: Preprocessing ===
+  preprocess_silver:
+    cmd: python src/scripts/preprocess_silver.py
+    deps:
+      - src/scripts/preprocess_silver.py
+      - data/bronze/images_raw.dvc
+    outs:
+      - data/silver/images_processed.dvc
+      - data/silver/labels.dvc
+    metrics:
+      - metrics/silver_processing.json:
+          cache: false
+    desc: Resize, normalize, augment images (silver layer)
+
+  # === SILVER → GOLD: Dataset curation ===
+  prepare_gold:
+    cmd: python src/scripts/prepare_gold.py
+    deps:
+      - src/scripts/prepare_gold.py
+      - data/silver/images_processed.dvc
+      - data/silver/labels.dvc
+    outs:
+      - data/gold/yolo_dataset.dvc
+      - data/gold/splits.json
+    metrics:
+      - metrics/gold_dataset.json:
+          cache: false
+    desc: Create YOLO dataset splits with stratification (gold layer)
+
+  # === MODEL TRAINING ===
+  train_yolo:
+    cmd: yolo train data=data/gold/yolo_dataset.yaml epochs=200 batch=32
+    deps:
+      - data/gold/yolo_dataset.dvc
+      - data/gold/yolo_dataset.yaml
+    outs:
+      - models/best.pt
+      - models/last.pt
+      - models/weights/best_weights.pth
+    metrics:
+      - metrics/model_metrics.json:
+          cache: false
+    plots:
+      - plots/training_curves.png:
+          cache: false
+      - plots/confusion_matrix.png:
+          cache: false
+    params:
+      - training.epochs
+      - training.batch_size
+      - training.learning_rate
+    desc: Train YOLOv8 classification model for defect detection
+
+  # === MODEL EVALUATION ===
+  evaluate_model:
+    cmd: python src/scripts/evaluate_model.py
+    deps:
+      - src/scripts/evaluate_model.py
+      - models/best.pt
+      - data/gold/yolo_dataset.dvc
+    metrics:
+      - metrics/evaluation.json:
+          cache: false
+    plots:
+      - plots/precision_recall.png:
+          cache: false
+      - plots/rocurve.png:
+          cache: false
+    desc: Evaluate model on test set, generate metrics and plots
+
+  # === ZENML PIPELINE ===
+  zenml_pipeline:
+    cmd: python src/pipelines/training_pipeline.py
+    deps:
+      - src/pipelines/training_pipeline.py
+      - data/gold/yolo_dataset.dvc
+    outs:
+      - models/zenml/
+    metrics:
+      - metrics/zenml_tracking.json:
+          cache: false
+    desc: Run full ZenML training pipeline with version control
