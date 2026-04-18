@@ -1,0 +1,272 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ovoscan
+  labels:
+    app: ovoscan
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ovoscan-config
+  namespace: ovoscan
+data:
+  APP_NAME: "ovoscan"
+  APP_ENV: "production"
+  APP_LOG_LEVEL: "INFO"
+  CONFIDENCE_THRESHOLD: "0.25"
+  ENABLE_RAG: "true"
+  ENABLE_METRICS: "true"
+  MLFLOW_TRACKING_URI: "http://mlflow-service:5000"
+  OLLAMA_HOST: "http://ollama-service:11434"
+  OLLAMA_MODEL: "llama3.2"
+---
+# Secrets
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: ovoscan-secrets
+  namespace: ovoscan
+data:
+  POSTGRES_PASSWORD: "Y2hhbmdlbWU="
+---
+# FastAPI Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ovoscan-api
+  namespace: ovoscan
+  labels:
+    app: ovoscan
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ovoscan
+      component: api
+  template:
+    metadata:
+      labels:
+        app: ovoscan
+        component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/ovoscan/api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: ovoscan-config
+            - secretRef:
+                name: ovoscan-secrets
+          env:
+            - name: API_HOST
+              value: "0.0.0.0"
+            - name: API_PORT
+              value: "8000"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /openapi.json
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: model-storage
+              mountPath: /app/models
+            - name: dvc-storage
+              mountPath: /app/.dvc
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: ovoscan-models-pvc
+        - name: dvc-storage
+          persistentVolumeClaim:
+            claimName: ovoscan-dvc-pvc
+---
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ovoscan-api-service
+  namespace: ovoscan
+  labels:
+    app: ovoscan
+    component: api
+spec:
+  selector:
+    app: ovoscan
+    component: api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
+---
+# Streamlit Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ovoscan-frontend
+  namespace: ovoscan
+  labels:
+    app: ovoscan
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ovoscan
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: ovoscan
+        component: frontend
+    spec:
+      containers:
+        - name: streamlit
+          image: ghcr.io/ovoscan/api:latest
+          command: ["streamlit", "run", "src/app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+          ports:
+            - containerPort: 8501
+          env:
+            - name: API_URL
+              value: "http://ovoscan-api-service:8000"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ovoscan-frontend-service
+  namespace: ovoscan
+  labels:
+    app: ovoscan
+    component: frontend
+spec:
+  selector:
+    app: ovoscan
+    component: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8501
+  type: ClusterIP
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ovoscan-ingress
+  namespace: ovoscan
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ovoscan.example.com
+      secretName: ovoscan-tls
+  rules:
+    - host: ovoscan.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: prefix
+            backend:
+              service:
+                name: ovoscan-api-service
+                port:
+                  number: 80
+          - path: /
+            pathType: prefix
+            backend:
+              service:
+                name: ovoscan-frontend-service
+                port:
+                  number: 8501
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ovoscan-api-hpa
+  namespace: ovoscan
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ovoscan-api
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# PersistentVolumeClaim for model weights
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ovoscan-models-pvc
+  namespace: ovoscan
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+# PersistentVolumeClaim for DVC data storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ovoscan-dvc-pvc
+  namespace: ovoscan
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
