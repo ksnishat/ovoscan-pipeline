@@ -1,0 +1,14 @@
+apiVersion: v2
+name: ovoscan
+description: A Helm chart for OvoScan - CV Pipeline with ZenML
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - computer-vision
+  - mlops
+  - zenml
+  - fastapi
+maintainers:
+  - name: Khaled Saifullah
+    email: ksnishaat@gmail.com
