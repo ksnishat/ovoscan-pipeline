@@ -28,6 +28,14 @@
 - **CI/CD Pipeline:** GitHub Actions for automated testing and deployment.
 - **GPU Support:** Optimized for NVIDIA GPU acceleration in K8s.
 
+
+### Recent Improvements (2026)
+🔧 **Makefile** — Standardized commands: `make test`, `make lint`, `make docker-up`, `make k8s-deploy`
+📦 **pyproject.toml** — Modern Python packaging with dependencies, entry points, ruff/mypy config
+🔒 **Pre-commit hooks** — Ruff, mypy, black, trailing whitespace, YAML validation
+📊 **Model Monitoring** — Prometheus metrics for predictions, confidence, latency, class distribution; `/monitoring` endpoint
+☁️ **Terraform IaC** — Azure infrastructure as code (AKS, PostgreSQL, Redis, monitoring)
+
 ## Architecture
 
 ```mermaid
