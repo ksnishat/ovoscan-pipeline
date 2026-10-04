@@ -1,0 +1,14 @@
+artifact_uri: /mnt/All_Needs/Development/Data-Science/ovoscan-pipeline/runs/mlflow/112053531178586064/2df372838f274bcaa946c8fc4140f3c7/artifacts
+end_time: 1768506184019
+entry_point_name: ''
+experiment_id: '112053531178586064'
+lifecycle_stage: active
+run_id: 2df372838f274bcaa946c8fc4140f3c7
+run_name: experiment_1
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1768506117041
+status: 3
+tags: []
+user_id: nishat

@@ -1,0 +1,29 @@
+FROM python:3.10-slim
+
+# 1. Install system libraries (Required for OpenCV & PyTorch)
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 2. INSTALL PYTORCH (Universal Version)
+# We use a high timeout (1000s) to prevent BrokenPipeError on large downloads.
+# We do NOT use --index-url .../cpu, so this installs GPU support by default.
+RUN pip install --no-cache-dir --default-timeout=1000 torch torchvision torchaudio ultralytics
+
+# 3. Install other dependencies
+COPY requirements.txt .
+# Exclude torch/ultralytics from requirements if listed there to avoid conflicts
+RUN grep -v "torch" requirements.txt | grep -v "ultralytics" > requirements_clean.txt || cp requirements.txt requirements_clean.txt
+RUN pip install --no-cache-dir --default-timeout=1000 -r requirements_clean.txt
+
+# 4. Copy Code
+COPY src/ src/
+COPY serving/ serving/
+COPY data/knowledge_base/ data/knowledge_base/
+
+EXPOSE 8001
+
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8001"]

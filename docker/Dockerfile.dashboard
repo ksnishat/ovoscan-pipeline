@@ -1,0 +1,14 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install ONLY what the dashboard needs (Lightweight)
+RUN pip install --no-cache-dir streamlit requests Pillow
+
+# Copy source code
+COPY src/ src/
+
+EXPOSE 8501
+
+# Run Streamlit
+CMD ["streamlit", "run", "src/dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
