@@ -35,6 +35,9 @@
 🔒 **Pre-commit hooks** — Ruff, mypy, black, trailing whitespace, YAML validation
 📊 **Model Monitoring** — Prometheus metrics for predictions, confidence, latency, class distribution; `/monitoring` endpoint
 ☁️ **Terraform IaC** — Azure infrastructure as code (AKS, PostgreSQL, Redis, monitoring)
+🐛 **Compose fix** — `Dockerfile.mlflow` was referenced by `docker-compose.yml` but untracked; now committed
+🐛 **Test fixes** — FastAPI lifespan now runs in tests (`with TestClient(app) as c:`), ZenML 0.97 pipeline signature read via `entrypoint`, DVC CLI guarded with `shutil.which`
+✅ **Test suite green** — 21 passed, 1 skipped (was 7 failed)
 
 ## Architecture
 
@@ -120,57 +123,127 @@ Germany's manufacturing sector relies on quality inspection as a critical qualit
 
 6. **Energy Efficiency**: Edge AI deployment reduces data transfer, supporting German sustainability goals in manufacturing.
 
-## Quick Start
+## Verified Model Metrics
+
+Reproduced locally on an NVIDIA RTX 3050 Ti (4 GB).
+
+| Metric | Value |
+|--------|-------|
+| Dataset | `egg_dataset/` (YOLOv8 classification layout: `train/`, `valid/`, `test/`) |
+| Classes | `defect`, `good` |
+| Base model | YOLOv8n-cls |
+| **Top-1 accuracy** | **97.2%** (`accuracy_top1 = 0.97193` in `runs/classify/train/results.csv`) |
+| Pipeline | ZenML (ingest → validate → train → evaluate → register) |
+
+The 97.2% figure is read directly from the training run's `results.csv`. The
+served checkpoint is the one produced by that run.
+
+## Quickstart
 
 ### 1. Environment Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/ksnishat/ovoscan-pipeline.git
-cd ovoscan-pipeline
-
-# Create conda environment
-conda env create -f environments/ovoscan-env.yml
+conda create -n ovoscan-env python=3.10 -y
 conda activate ovoscan-env
+pip install -r requirements.txt
 ```
 
-### 2. Start Services
+### 2. Train
 
 ```bash
-# Start all services with Docker Compose
-docker compose up -d
+python -c "from ultralytics import YOLO; \
+m = YOLO('yolov8n-cls.pt'); \
+m.train(data='egg_dataset', epochs=30, imgsz=224, batch=16)"
 ```
 
-### 3. Run ZenML Pipeline
+Copy the best checkpoint into `models/`:
 
 ```bash
-# Initialize ZenML
+cp runs/classify/train/weights/best.pt models/ovoscan_cls_best.pt
+```
+
+### 3. Run the ZenML pipeline
+
+```bash
 zenml init
-
-# Register stack
 zenml stack register ovoscan_stack -a localhost -o localhost -d localhost
-
-# Run pipeline
-zenml pipeline run ovoscan_pipeline
+python -m src.pipeline.training_pipeline
 ```
 
-### 4. Access Dashboards
+### 4. Start the API
+
+```bash
+PYTHONPATH=src uvicorn app:app --host 0.0.0.0 --port 8003
+```
+
+### 5. Verify
+
+```bash
+curl http://localhost:8003/health
+curl http://localhost:8003/metrics | grep ovoscan
+curl -X POST http://localhost:8003/predict -F "file=@egg_dataset/valid/defect/<image>.jpg"
+```
+
+### 6. Or launch the whole Docker stack
+
+```bash
+docker compose up -d      # mlflow, api, frontend, prometheus, grafana
+```
+
+## Running Tests
+
+```bash
+PYTHONPATH=src pytest tests/ -v      # 21 passed, 1 skipped
+```
+
+## Monitoring & Live Demo
+
+```bash
+./start_all_stacks.sh ovoscan    # API :8003 + Prometheus :9093 + Grafana :3000
+python3 provision_dashboards.py  # datasource + dashboard
+```
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| **FastAPI** | http://localhost:8000/docs | N/A |
-| **Plotly Dash** | http://localhost:8050 | N/A |
-| **Streamlit** | http://localhost:8501 | N/A |
+| **FastAPI** | http://localhost:8003/docs | N/A |
+| **Prometheus** | http://localhost:9093 | N/A |
+| **Grafana** | http://localhost:3000 | `admin` / `admin` |
 | **MLflow** | http://localhost:5000 | N/A |
+| **Streamlit** | http://localhost:8501 | N/A |
 | **ZenML** | http://localhost:8080 | N/A |
+
+### Exposed metrics
+
+| Metric | Type | Meaning |
+|--------|------|---------|
+| `ovoscan_predictions_total` | counter | Predictions, labelled by `class_label` |
+| `ovoscan_prediction_confidence` | histogram | Confidence distribution |
+| `ovoscan_prediction_latency_seconds` | histogram | Inference latency |
+| `ovoscan_model_loaded` | gauge | 1 when the model is loaded, 0 otherwise |
+| `ovoscan_inference_errors_total` | counter | Inference failures |
+| `ovoscan_class_distribution` | gauge | Rolling class distribution (drift signal) |
+
+## RAG Quality Assistant
+
+`src/agent/rag.py` implements a ChromaDB + LangChain retrieval pipeline over a
+maintenance knowledge base, using `sentence-transformers/all-MiniLM-L6-v2`
+embeddings and a local Ollama LLM.
+
+**Current status:** the code path is complete, but the knowledge base file
+(`data/knowledge_base/manual.txt`) is not shipped in this repository, so the
+agent reports `rag_available: false` and falls back to template responses. To
+enable it, add your own manual text at that path:
+
+```bash
+mkdir -p data/knowledge_base
+cp /path/to/your/manual.txt data/knowledge_base/manual.txt
+```
 
 ## Kubernetes Deployment
 
 ```bash
-# Install Helm chart
 helm install ovoscan ./helm-chart
-
-# Or deploy via kubectl
+# or
 kubectl apply -f k8s/
 ```
 
@@ -181,22 +254,20 @@ ovoscan-pipeline/
 ├── models/                     # Serialized models
 ├── notebooks/                  # Jupyter notebooks for EDA
 ├── src/
-│   ├── app.py                  # FastAPI Backend
+│   ├── app.py                  # FastAPI backend + Prometheus instrumentation
 │   ├── pipeline/               # ZenML pipelines
 │   ├── agent/
-│   │   └── rag.py              # RAG quality assessment
+│   │   └── rag.py              # ChromaDB + LangChain RAG quality assistant
 │   └── utils/
 │       ├── logging_config.py   # Structured JSON logging
+│       ├── monitoring.py       # Prometheus metrics + drift tracking
 │       └── config.py           # Pydantic settings
 ├── tests/                      # Unit tests
-│   ├── test_api.py
-│   ├── test_pipeline.py
-│   └── conftest.py
 ├── k8s/                        # Kubernetes manifests
 ├── helm-chart/                 # Helm chart for K8s
+├── infrastructure/docker/      # Dockerfiles (incl. Dockerfile.mlflow)
 ├── environments/               # Conda environments
 ├── job_preparation/            # Interview preparation
-├── .github/workflows/          # CI/CD pipelines
 ├── .dvc/                       # DVC configuration
 └── docker-compose.yml          # Container orchestration
 ```
@@ -205,14 +276,16 @@ ovoscan-pipeline/
 
 | Issue | Solution |
 |-------|----------|
-| **YOLO model not found** | Ensure model weights exist in models/ directory |
-| **ZenML stack not registered** | Run `zenml stack register` with correct orchestrator/artifact/metadata stores |
-| **DVC remote not accessible** | Check DVC remote storage configuration (S3/GCS/Azure) |
-| **Ollama connection refused** | Verify Ollama service is running on port 11434 |
-| **Streamlit not loading** | Check frontend service logs |
-| **Model loading error** | Verify model path in config.py matches training output |
-| **GPU not detected in K8s** | Install NVIDIA device plugin and ensure GPU nodes available |
-| **Pipeline run fails** | Check ZenML logs: `zenml pipeline describe <pipeline_name>` |
+| **YOLO model not found** | Train with the command above and copy `best.pt` to `models/ovoscan_cls_best.pt` |
+| **`docker compose up` → missing `Dockerfile.mlflow`** | Fixed in this commit — the file is now tracked in git |
+| **Tests fail with "model not loaded"** | `TestClient(app)` must be used as a context manager so the FastAPI lifespan runs: `with TestClient(app) as c:` |
+| **ZenML pipeline signature introspection fails** | ZenML 0.97 wraps the pipeline; read `pipeline.entrypoint` for the real signature |
+| **`rag_available: false`** | Add `data/knowledge_base/manual.txt` (see RAG section above) |
+| **ZenML stack not registered** | Run `zenml stack register` with the correct orchestrator/artifact/metadata stores |
+| **DVC remote not accessible** | Check the DVC remote storage configuration (S3/GCS/Azure) |
+| **Ollama connection refused** | Verify Ollama is running on port 11434 |
+| **Grafana shows "No data"** | Re-run `provision_dashboards.py` so the datasource points at the Prometheus container IP |
+| **GPU not detected in K8s** | Install the NVIDIA device plugin and ensure GPU nodes are available |
 
 ## Author
 
