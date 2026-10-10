@@ -104,15 +104,36 @@ class HatcheryAgent:
                 self._build_chain()
                 return count
 
+        # Chroma.from_documents appends to an existing collection rather than
+        # replacing it, so a rebuild must drop the collection first or stale
+        # chunks from a previous version of the document survive.
+        if force_rebuild and self._index_exists():
+            stale = Chroma(
+                collection_name=self.collection_name,
+                embedding_function=self.embeddings,
+                persist_directory=self.persist_directory,
+            )
+            stale.delete_collection()
+
         documents = TextLoader(self.kb_path, encoding="utf-8").load()
 
-        # Recursive splitting respects paragraph and section boundaries before
-        # falling back to character cuts, which keeps the disposition tables in
-        # Section 5 intact instead of slicing them mid-row.
+        # The manual uses long '====' rules as section dividers. Left in place
+        # they become their own chunks and dominate retrieval, so strip them
+        # and split on paragraph boundaries instead.
+        for doc in documents:
+            doc.page_content = "\n".join(
+                line
+                for line in doc.page_content.splitlines()
+                if set(line.strip()) not in ({"="}, {"-"}) and line.strip()
+            )
+
+        # Recursive splitting respects paragraph boundaries before falling back
+        # to character cuts, which keeps the disposition tables in Section 5
+        # intact instead of slicing them mid-row.
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=800,
             chunk_overlap=120,
-            separators=["\n=====", "\n\n", "\n", " ", ""],
+            separators=["\n\n", "\n", " ", ""],
         )
         chunks = splitter.split_documents(documents)
 
