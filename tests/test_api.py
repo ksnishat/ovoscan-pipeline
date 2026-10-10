@@ -17,6 +17,23 @@ def client():
         yield c
 
 
+def _model_available() -> bool:
+    """Whether the trained YOLO checkpoint is present on disk.
+
+    The weights are a large binary and are not committed, so inference tests
+    are skipped rather than failed on a fresh clone or in CI. This checks the
+    file rather than the loaded module attribute, because the model is loaded
+    during the FastAPI lifespan, which has not run at collection time.
+    """
+    return os.path.exists(os.getenv("MODEL_PATH", "serving/model.pt"))
+
+
+requires_model = pytest.mark.skipif(
+    not _model_available(),
+    reason="YOLO checkpoint not present (train the model or fetch it via DVC)",
+)
+
+
 @pytest.fixture
 def dummy_egg_image(tmp_path):
     """Create a small dummy egg-shaped image."""
@@ -59,6 +76,7 @@ class TestHealth:
 class TestPredict:
     """Test /predict endpoint."""
 
+    @requires_model
     def test_predict_with_valid_image(self, client, dummy_egg_image):
         with open(dummy_egg_image, "rb") as f:
             response = client.post("/predict", files={"file": f.read()})
@@ -70,6 +88,7 @@ class TestPredict:
         pred = data.get("prediction", data.get("pred", ""))
         assert pred.upper() in ("FERTILE", "CRACK", "INFERTILE", "BAD")
 
+    @requires_model
     def test_predict_returns_confidence(self, client, dummy_egg_image):
         with open(dummy_egg_image, "rb") as f:
             response = client.post("/predict", files={"file": f.read()})
@@ -96,6 +115,7 @@ class TestPredict:
 class TestAgent:
     """Test RAG agent endpoint."""
 
+    @requires_model
     def test_analyze_report_valid(self, client, dummy_egg_image):
         with open(dummy_egg_image, "rb") as f:
             response = client.post("/analyze-report", files={"file": f.read()})
