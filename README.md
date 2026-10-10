@@ -179,9 +179,16 @@ PYTHONPATH=src uvicorn app:app --host 0.0.0.0 --port 8003
 ### 5. Verify
 
 ```bash
-curl http://localhost:8003/health
+# The root path is the health endpoint; there is no /health route.
+curl http://localhost:8003/
+# {"status":"running","service":"ovoscan-ai-v2","model_loaded":true,"rag_available":true,"device":"cuda"}
+
 curl http://localhost:8003/metrics | grep ovoscan
-curl -X POST http://localhost:8003/predict -F "file=@egg_dataset/valid/defect/<image>.jpg"
+
+# The dataset is a classification layout: valid/images/, not valid/defect/.
+IMG=$(find egg_dataset/valid/images -type f | head -1)
+curl -X POST http://localhost:8003/predict -F "file=@$IMG"
+# {"filename":"...","prediction":"defect","confidence":0.997,"status":"success"}
 ```
 
 ### 6. Or launch the whole Docker stack
