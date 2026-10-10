@@ -19,9 +19,9 @@
 
 ## Key Features
 
-- **Computer Vision:** YOLOv8s classification model (97.2% top-1 accuracy) for egg quality grading (fertile/cracked/chipped/misplaced/stained).
+- **Computer Vision:** YOLOv8n-cls classification model (97.2% top-1 accuracy) for egg quality grading (classes: `fertile`, `infertile`).
 - **ZenML Pipelines:** Reproducible, versioned ML pipelines with experiment tracking.
-- **GenAI Quality Reports:** RAG-powered reports using Llama 3.2 via Ollama (with template fallback).
+- **GenAI Quality Reports:** ChromaDB retrieval over a quality manual, then a local LLM via Ollama writes the report (with template fallback).
 - **Multi-page Dashboard:** Plotly Dash for professional inspection visualization.
 - **DVC Integration:** Data version control for ML artifacts and datasets.
 - **Kubernetes Ready:** Full K8s manifests and Helm charts for scalable deployment.
@@ -60,7 +60,7 @@ graph TD
     
     %% GenAI Agent
     subgraph GenAI[GenAI Agent Layer]
-        Ollama[Llama 3.2 via Ollama<br/>RAG Quality Assessment] -->|Input: Defect Data| Report[Quality Report<br/>German/English]
+        Ollama[ChromaDB + local LLM<br/>RAG Quality Assessment] -->|Input: Defect Data| Report[Quality Report<br/>German/English]
         API_Backend --> Ollama
     end
     
@@ -98,10 +98,10 @@ graph TD
 
 | Feature | Description | Business Value | German Industry Relevance |
 |---------|-------------|----------------|---------------------------|
-| **Defect Classification** | YOLOv8s classification (97.2% top-1) for egg quality grading | Reduces false rejects by 30% vs manual inspection | Aligns with ISO 9001 visual inspection standards |
+| **Defect Classification** | YOLOv8n-cls classification (97.2% top-1) for egg quality grading | Automates a first-pass visual triage of every egg | Aligns with ISO 9001 visual inspection standards |
 | **ZenML Pipelines** | Reproducible, versioned ML pipelines | Ensures model lineage and auditability | Supports German regulatory compliance (GDPR/DSGVO) |
 | **DVC Data Versioning** | Full dataset and model version control | Enables rollback and A/B model comparison | Meets German quality management (DIN EN ISO 9001) |
-| **GenAI Quality Reports** | Llama 3.2 RAG generates inspection reports in German/English | Reduces documentation time by 50% | Meets German language requirements for B2B software |
+| **GenAI Quality Reports** | ChromaDB RAG over a quality manual, then a local LLM writes the report | Removes the blank-page step from inspection write-ups | Meets German language requirements for B2B software |
 | **Multi-page Dashboard** | Plotly Dash with inspection, metrics, and model management | Enables real-time production line decisions | Matches German manufacturing dashboard standards |
 | **GPU Acceleration** | NVIDIA GPU passthrough in K8s | Enables high-throughput real-time inspection | Critical for German automotive production lines |
 | **Scalable Architecture** | Kubernetes with HPA and GPU scheduling | Handles peak production volumes | Compatible with German Industrie 4.0 cloud infrastructure |
