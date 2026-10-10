@@ -44,6 +44,18 @@ dependencies = [
     "prometheus-client>=0.20.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
+    "torch",
+    "pillow",
+    "opencv-python-headless",
+    "dash",
+    "dash-bootstrap-components",
+    "plotly",
+    "langchain-core",
+    "langchain-text-splitters",
+    "python-json-logger",
+    "requests",
+    "python-multipart",
+    "typing-extensions",
 ]
 
 [project.optional-dependencies]
