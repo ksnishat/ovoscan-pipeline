@@ -7,7 +7,6 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ovoscan_ollama
-    network_mode: "bridge"
     ports:
       - "11434:11434"
     volumes:
@@ -36,7 +35,6 @@ services:
   # 2. API (FastAPI with YOLOv8)
   # ==========================================
   api:
-    image: ghcr.io/ovoscan/api:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -88,7 +86,10 @@ services:
   # 3. DASHBOARD (Plotly Dash - Modern Enterprise UI)
   # ==========================================
   dash:
-    image: ghcr.io/ovoscan/api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
     container_name: ovoscan_dash
     command: python -m src.dash_app.app
     ports:
@@ -116,7 +117,10 @@ services:
   # 4. LEGACY FRONTEND (Streamlit)
   # ==========================================
   streamlit:
-    image: ghcr.io/ovoscan/api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
     container_name: ovoscan_streamlit
     command: streamlit run src/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
     ports:
@@ -142,11 +146,10 @@ services:
   # 5. MLflow (Experiment Tracking)
   # ==========================================
   mlflow:
-    image: ghcr.io/ovoscan/mlflow:latest
-    container_name: ovoscan_mlflow
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.mlflow
+    container_name: ovoscan_mlflow
     ports:
       - "5000:5000"
     environment:

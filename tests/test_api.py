@@ -12,7 +12,9 @@ from src.app import app
 
 @pytest.fixture(scope="module")
 def client():
-    return TestClient(app, raise_server_exceptions=False)
+    # Context manager is required so FastAPI lifespan (model loading) runs.
+    with TestClient(app, raise_server_exceptions=False) as c:
+        yield c
 
 
 @pytest.fixture
@@ -77,10 +79,11 @@ class TestPredict:
         assert 0 <= conf <= 1
 
     def test_predict_handles_missing_model(self, client):
-        """If model not loaded, should return graceful error."""
+        """A request without a file must be rejected cleanly (not crash the server)."""
         response = client.post("/predict")
-        # Should not crash server
-        assert response.status_code in (200, 500)
+        # FastAPI validation returns 422 when the required file field is absent.
+        assert response.status_code in (200, 422, 500)
+        assert response.status_code != 200 or "status" in response.json()
 
 
     def test_predict_uses_gpu_detection(self, client, dummy_egg_image):
@@ -119,13 +122,12 @@ class TestPipeline:
         assert ovoscan_training_pipeline is not None
 
     def test_pipeline_structure(self):
-        """Pipeline should have ingest, split, and train steps."""
+        """Pipeline should expose a data_path parameter (ZenML wraps the signature)."""
         from src.pipelines.training_pipeline import ovoscan_training_pipeline
-        # Check pipeline function signature
         import inspect
-        sig = inspect.signature(ovoscan_training_pipeline)
-        params = list(sig.parameters.keys())
-        assert "data_path" in params or "data_path" in sig.parameters
+        target = getattr(ovoscan_training_pipeline, "entrypoint", ovoscan_training_pipeline)
+        params = list(inspect.signature(target).parameters.keys())
+        assert "data_path" in params
 
     def test_pipeline_parameter_defaults(self):
         """Pipeline should have sensible parameter defaults."""
@@ -148,11 +150,12 @@ class TestDVC:
 
     def test_dvc_available(self):
         """DVC should be available for data versioning."""
+        import shutil
         import subprocess
-        result = subprocess.run(["dvc", "--version"], capture_output=True, text=True)
-        # DVC may not be installed - skip if unavailable
-        if result.returncode != 0:
+        if shutil.which("dvc") is None:
             pytest.skip("DVC not installed")
+        result = subprocess.run(["dvc", "--version"], capture_output=True, text=True)
+        assert result.returncode == 0
 
 
 class TestStreamlitDashboard:

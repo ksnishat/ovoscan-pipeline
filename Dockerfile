@@ -27,7 +27,7 @@ WORKDIR /app
 # Install only runtime system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    libhdf5-103 \
+    libhdf5-hl-310 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

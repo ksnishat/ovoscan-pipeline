@@ -35,6 +35,8 @@ logs/
 *.log
 
 # --- Data & Models ---
+egg_dataset/
+yolo_dataset_cache/
 data/
 models/
 serving/
