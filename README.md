@@ -225,19 +225,65 @@ python3 provision_dashboards.py  # datasource + dashboard
 
 ## RAG Quality Assistant
 
-`src/agent/rag.py` implements a ChromaDB + LangChain retrieval pipeline over a
-maintenance knowledge base, using `sentence-transformers/all-MiniLM-L6-v2`
+`src/agent/rag.py` implements a **ChromaDB + LangChain** retrieval pipeline over
+a hatchery quality-control manual, using `sentence-transformers/all-MiniLM-L6-v2`
 embeddings and a local Ollama LLM.
 
-**Current status:** the code path is complete, but the knowledge base file
-(`data/knowledge_base/manual.txt`) is not shipped in this repository, so the
-agent reports `rag_available: false` and falls back to template responses. To
-enable it, add your own manual text at that path:
+The knowledge base ships with the repository at
+`knowledge_base/hatchery_manual.txt`, so `rag_available` is **`true`** out of the
+box. The API reports it in the health response:
 
 ```bash
-mkdir -p data/knowledge_base
-cp /path/to/your/manual.txt data/knowledge_base/manual.txt
+curl http://localhost:8003/
+# {"status":"running","service":"ovoscan-ai-v2","model_loaded":true,"rag_available":true,"device":"cuda"}
 ```
+
+### How it works
+
+1. The manual is split with `RecursiveCharacterTextSplitter` (800 chars, 120
+   overlap), splitting on section boundaries first so the disposition tables
+   stay intact.
+2. Chunks are embedded and persisted to a ChromaDB collection at
+   `data/chroma/` — built once, reused across restarts.
+3. A defect query retrieves the top 4 chunks, which are injected into a
+   criteria / action / escalation prompt.
+4. The local LLM answers **only** from the retrieved context.
+
+### Verified behaviour
+
+Asking about an infertile egg returns:
+
+```
+1. CRITERIA - The manual does not specify the criteria that identify an
+   infertile egg (it only lists visual indicators for fertile eggs).
+2. ACTION - Remove the egg from the incubation stream immediately and record
+   the source flock identifier and collection date.
+3. ESCALATION - If the infertility rate for a single flock exceeds 8 percent
+   over a rolling 7-day window.
+```
+
+The 8 percent threshold appears in Section 6.1 of the manual and nowhere in the
+prompt — so this is genuine retrieval, not the model reciting training data.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `KNOWLEDGE_BASE_PATH` | `knowledge_base/hatchery_manual.txt` | Manual to index |
+| `CHROMA_PERSIST_DIR` | `data/chroma` | Vector store location |
+| `CHROMA_COLLECTION` | `hatchery_rules` | Collection name |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Embedding model |
+| `OLLAMA_MODEL` | `llama3.2` | Generation model |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama endpoint |
+
+To index your own manual instead:
+
+```bash
+KNOWLEDGE_BASE_PATH=/path/to/your/manual.txt python -m src.agent.rag
+```
+
+> **Hardware note:** a 4 GB GPU cannot hold a 26B model. Use a small model
+> (1B-3B) for responsive RAG, or accept CPU-bound latency with a larger one.
 
 ## Kubernetes Deployment
 
@@ -267,7 +313,6 @@ ovoscan-pipeline/
 ├── helm-chart/                 # Helm chart for K8s
 ├── infrastructure/docker/      # Dockerfiles (incl. Dockerfile.mlflow)
 ├── environments/               # Conda environments
-├── job_preparation/            # Interview preparation
 ├── .dvc/                       # DVC configuration
 └── docker-compose.yml          # Container orchestration
 ```
@@ -280,7 +325,8 @@ ovoscan-pipeline/
 | **`docker compose up` → missing `Dockerfile.mlflow`** | Fixed in this commit — the file is now tracked in git |
 | **Tests fail with "model not loaded"** | `TestClient(app)` must be used as a context manager so the FastAPI lifespan runs: `with TestClient(app) as c:` |
 | **ZenML pipeline signature introspection fails** | ZenML 0.97 wraps the pipeline; read `pipeline.entrypoint` for the real signature |
-| **`rag_available: false`** | Add `data/knowledge_base/manual.txt` (see RAG section above) |
+| **`rag_available: false`** | The knowledge base is missing or the RAG deps failed to import. Check `knowledge_base/hatchery_manual.txt` exists and that `chromadb`, `langchain-chroma` and `langchain-huggingface` are installed |
+| **RAG responses are very slow** | A large Ollama model is spilling to CPU. Check `ollama ps` — if the PROCESSOR column shows a high CPU percentage, switch to a smaller model via `OLLAMA_MODEL` |
 | **ZenML stack not registered** | Run `zenml stack register` with the correct orchestrator/artifact/metadata stores |
 | **DVC remote not accessible** | Check the DVC remote storage configuration (S3/GCS/Azure) |
 | **Ollama connection refused** | Verify Ollama is running on port 11434 |

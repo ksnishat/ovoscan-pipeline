@@ -1,0 +1,201 @@
+HATCHERY EGG QUALITY CONTROL MANUAL
+Internal Reference Document - Quality Assurance Division
+Revision 4.2
+
+================================================================================
+SECTION 1: SCOPE AND PURPOSE
+================================================================================
+
+This manual defines the visual quality criteria and disposition rules for
+table and hatching eggs entering the incubation stream. It is the reference
+document used by the automated optical inspection system (OvoScan) and by
+human graders performing manual verification.
+
+The objective of this procedure is to remove eggs that cannot produce a viable
+chick before they consume incubator capacity. Incubator space is the binding
+constraint in hatchery economics: an infertile or cracked egg occupies a
+tray position for 18 days and returns nothing.
+
+================================================================================
+SECTION 2: CLASSIFICATION CATEGORIES
+================================================================================
+
+The inspection system assigns each egg to exactly one of two classes.
+
+2.1 FERTILE
+    An egg whose internal structure is consistent with a successfully
+    fertilised ovum. Visual indicators include:
+      - A clearly defined, centrally located blastoderm disc.
+      - Uniform yolk shadow without irregular dark mottling.
+      - Intact shell with no visible fracture lines under transmitted light.
+      - Absence of blood rings, which indicate an embryo that died early.
+
+    Disposition: ACCEPT. Route to the incubation stream.
+
+2.2 INFERTILE
+    An egg that shows no evidence of fertilisation, or that shows evidence of
+    early embryonic death. Visual indicators include:
+      - Absence of a visible blastoderm disc, or a disc with irregular,
+        granular appearance.
+      - A distinct blood ring encircling the yolk, indicating early mortality.
+      - Cloudy or opaque albumen inconsistent with a fresh fertile egg.
+      - Shell surface anomalies that correlate with poor hatchability.
+
+    Disposition: REJECT. Remove from the incubation stream.
+
+================================================================================
+SECTION 3: SHELL INTEGRITY CRITERIA
+================================================================================
+
+Shell defects are the second most common cause of rejection after
+infertility. The following defects are grounds for immediate rejection
+regardless of internal classification.
+
+3.1 CRACKED SHELL
+    Any visible fracture line, including hairline cracks that are only
+    detectable under transmitted light. A cracked shell allows bacterial
+    ingress and will contaminate adjacent eggs in the tray.
+
+3.2 STAR FRACTURE
+    A localised impact site with radiating fracture lines. Typically caused by
+    rough handling during collection or transport. Always reject.
+
+3.3 PINHOLE
+    A small puncture, often from a broken eggshell fragment in the collection
+    belt. Difficult to detect visually; requires transmitted light inspection.
+
+3.4 SHELL-LESS OR SOFT-SHELLED
+    An egg with an incomplete or absent calcified shell. Indicates a calcium
+    metabolism deficiency in the laying flock. Reject and flag the source
+    flock for nutritional review.
+
+3.5 DIRTY SHELL
+    Visible faecal or organic contamination covering more than approximately
+    10 percent of the shell surface. Reject. Contamination spreads through
+    the incubator and reduces hatch rate for the entire tray.
+
+================================================================================
+SECTION 4: SIZE AND SHAPE CRITERIA
+================================================================================
+
+4.1 UNDERSIZED EGGS
+    Eggs below the minimum weight threshold for the breed line. These produce
+    undersized chicks with reduced viability. Reject.
+
+4.2 OVERSIZED EGGS
+    Eggs above the maximum weight threshold. These are frequently double-yolked
+    and will not hatch. Reject.
+
+4.3 ABNORMAL SHAPE
+    Markedly elongated, spherical, or ridged eggs. Shape anomalies correlate
+    with internal structural anomalies. Reject.
+
+================================================================================
+SECTION 5: DISPOSITION RULES
+================================================================================
+
+The following decision table is authoritative. When the automated system and a
+human grader disagree, the human grader's decision prevails and the case is
+logged for model review.
+
+  Classification    Shell Integrity    Disposition
+  ----------------  -----------------  --------------------------------------
+  FERTILE           Intact             ACCEPT
+  FERTILE           Any defect         REJECT (shell defect overrides)
+  INFERTILE         Intact             REJECT (infertility)
+  INFERTILE         Any defect         REJECT (both grounds)
+  UNCERTAIN         Intact             HOLD for manual grading
+  UNCERTAIN         Any defect         REJECT
+
+================================================================================
+SECTION 6: REQUIRED ACTIONS BY DEFECT CLASS
+================================================================================
+
+6.1 INFERTILE - ACTION
+    Remove the egg from the incubation stream immediately. Record the source
+    flock identifier and collection date. If the infertility rate for a single
+    flock exceeds 8 percent over a rolling 7-day window, escalate to the
+    Flock Health team for a fertility investigation. Common causes are
+    incorrect male-to-female ratio, male infertility, or excessive flock age.
+
+6.2 CRACKED SHELL - ACTION
+    Remove the egg immediately. Inspect the upstream collection belt and
+    transport trays for the mechanical cause. If cracks exceed 2 percent of
+    daily volume, schedule a maintenance review of the collection line.
+
+6.3 DIRTY SHELL - ACTION
+    Remove the egg immediately. Review nest box hygiene and litter condition.
+    Persistent contamination indicates a housing management issue rather than
+    an egg-level issue.
+
+6.4 SOFT-SHELLED - ACTION
+    Remove the egg immediately. Flag the source flock for a calcium and
+    vitamin D3 nutrition review. Collect a shell quality sample for the
+    nutritionist.
+
+6.5 ABNORMAL SHAPE - ACTION
+    Remove the egg. Log the anomaly. Isolated occurrences require no further
+    action; a cluster indicates a flock-level issue.
+
+================================================================================
+SECTION 7: ESCALATION THRESHOLDS
+================================================================================
+
+The following thresholds trigger an escalation to the Quality Manager. These
+are the values the monitoring system should alert on.
+
+  Metric                              Threshold        Escalation
+  ----------------------------------  ---------------  ----------------------
+  Infertility rate, rolling 7 days    > 8 percent      Flock Health team
+  Crack rate, daily                   > 2 percent      Maintenance review
+  Contamination rate, daily           > 1 percent      Housing management
+  Soft-shell rate, rolling 7 days     > 0.5 percent    Nutritionist
+  Model confidence, rolling 100 eggs  < 0.75 mean      Model review
+
+The model confidence threshold is a system-health signal, not an egg-quality
+signal. A sustained drop in mean confidence usually indicates that the
+incoming egg population has drifted away from the training distribution, for
+example a new breed line or a change in lighting conditions at the inspection
+station.
+
+================================================================================
+SECTION 8: INSPECTION ENVIRONMENT REQUIREMENTS
+================================================================================
+
+8.1 LIGHTING
+    Transmitted light inspection requires a diffuse backlight at approximately
+    2000 to 3000 lux at the egg surface. Direct point sources create glare that
+    the optical system may interpret as a shell defect.
+
+8.2 CONVEYOR SPEED
+    The inspection station is rated for a maximum conveyor speed of 12 eggs per
+    second. Above this rate, motion blur reduces classification accuracy.
+
+8.3 CAMERA CALIBRATION
+    Recalibrate the inspection camera at the start of every shift using the
+    reference target. Log the calibration result. An uncalibrated camera is the
+    most common cause of a sudden accuracy drop.
+
+8.4 AMBIENT TEMPERATURE
+    Maintain the inspection area between 15 and 25 degrees Celsius. Condensation
+    on the camera lens at low temperatures produces false shell-defect
+    detections.
+
+================================================================================
+SECTION 9: RECORD KEEPING
+================================================================================
+
+Every inspection decision must be logged with the following fields:
+  - Timestamp
+  - Egg identifier or tray position
+  - Assigned classification and confidence score
+  - Shell integrity result
+  - Final disposition
+  - Operator identifier, if manually overridden
+
+Records are retained for 24 months to support hatchability analysis and
+customer quality audits.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

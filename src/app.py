@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
         set_model_loaded(False)
 
     # 3. Load RAG Agent
-    kb_path = os.getenv("KNOWLEDGE_BASE_PATH", "data/knowledge_base/manual.txt")
+    kb_path = os.getenv("KNOWLEDGE_BASE_PATH", "knowledge_base/hatchery_manual.txt")
     if AGENT_AVAILABLE and os.path.exists(kb_path):
         try:
             agent = HatcheryAgent(kb_path)
