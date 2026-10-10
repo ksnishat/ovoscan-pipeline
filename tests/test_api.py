@@ -125,6 +125,7 @@ class TestAgent:
             data = response.json()
             assert "technical_report" in data
 
+    @requires_model
     def test_analyze_report_returns_report_structure(self, client, dummy_egg_image):
         with open(dummy_egg_image, "rb") as f:
             response = client.post("/analyze-report", files={"file": f.read()})
