@@ -18,15 +18,15 @@ Design notes
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
-from langchain_community.document_loaders import TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.document_loaders import TextLoader
 from langchain_community.llms import Ollama
-from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 DEFAULT_LLM_MODEL = "llama3.2"
@@ -58,11 +58,11 @@ class HatcheryAgent:
     def __init__(
         self,
         knowledge_base_path: str,
-        persist_directory: Optional[str] = None,
-        collection_name: Optional[str] = None,
-        embedding_model: Optional[str] = None,
-        llm_model: Optional[str] = None,
-        ollama_base_url: Optional[str] = None,
+        persist_directory: str | None = None,
+        collection_name: str | None = None,
+        embedding_model: str | None = None,
+        llm_model: str | None = None,
+        ollama_base_url: str | None = None,
     ) -> None:
         self.kb_path = knowledge_base_path
         self.persist_directory = persist_directory or os.getenv(
@@ -81,7 +81,7 @@ class HatcheryAgent:
 
         self.embeddings = HuggingFaceEmbeddings(model_name=self.embedding_model_name)
         self.llm = Ollama(model=self.llm_model_name, base_url=self.ollama_base_url)
-        self.vector_db: Optional[Chroma] = None
+        self.vector_db: Chroma | None = None
         self.chain: Any = None
 
     # ------------------------------------------------------------------ ingest

@@ -13,19 +13,20 @@ Usage:
 import io
 import os
 import time
-import torch
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse, Response
-from PIL import Image
-import uvicorn
 from contextlib import asynccontextmanager
+
+import torch
+import uvicorn
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import Response
+from PIL import Image
 
 # Import monitoring utilities
 from src.utils.monitoring import (
-    record_prediction,
-    record_inference_error,
-    set_model_loaded,
     get_monitoring_summary,
+    record_inference_error,
+    record_prediction,
+    set_model_loaded,
 )
 
 # Try to import YOLO
@@ -212,7 +213,7 @@ async def analyze_report(file: UploadFile = File(...)):
 @app.get("/metrics")
 def metrics():
     """Prometheus metrics endpoint."""
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 

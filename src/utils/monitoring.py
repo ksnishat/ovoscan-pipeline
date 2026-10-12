@@ -7,9 +7,8 @@ Prometheus for real-time monitoring.
 """
 import time
 from collections import deque
-from typing import Optional
 
-from prometheus_client import Counter, Histogram, Gauge, Summary
+from prometheus_client import Counter, Gauge, Histogram
 
 # --- Prometheus Metrics ---
 

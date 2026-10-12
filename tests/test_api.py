@@ -3,10 +3,11 @@
 Tests for the FastAPI inference endpoint, ZenML pipeline, and YOLOv8 classification.
 """
 
-import pytest
-import tempfile
 import os
+
+import pytest
 from fastapi.testclient import TestClient
+
 from src.app import app
 
 
@@ -39,7 +40,6 @@ def dummy_egg_image(tmp_path):
     """Create a small dummy egg-shaped image."""
     try:
         from PIL import Image
-        import numpy as np
         img = Image.new("RGB", (300, 300), color="white")
         img.save(tmp_path / "test_egg.jpg", format="JPEG")
         return tmp_path / "test_egg.jpg"
@@ -144,15 +144,15 @@ class TestPipeline:
 
     def test_pipeline_structure(self):
         """Pipeline should expose a data_path parameter (ZenML wraps the signature)."""
-        from src.pipelines.training_pipeline import ovoscan_training_pipeline
         import inspect
+
+        from src.pipelines.training_pipeline import ovoscan_training_pipeline
         target = getattr(ovoscan_training_pipeline, "entrypoint", ovoscan_training_pipeline)
         params = list(inspect.signature(target).parameters.keys())
         assert "data_path" in params
 
     def test_pipeline_parameter_defaults(self):
         """Pipeline should have sensible parameter defaults."""
-        from src.pipelines.training_pipeline import ovoscan_training_pipeline
         # Can be called with just data_path (using defaults for epochs, batch_size)
 
 

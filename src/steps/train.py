@@ -1,9 +1,11 @@
 import os
 import shutil
+from typing import Annotated
+
 import pandas as pd
-from zenml import step
 from ultralytics import YOLO
-from typing_extensions import Annotated
+from zenml import step
+
 
 # ... (Keep create_yolo_structure helper exactly as is) ...
 def create_yolo_structure(df: pd.DataFrame, split_name: str, root_dir: str):
@@ -34,45 +36,45 @@ def train_model(
     try:
         # 1. Setup Temporary Training Workspace
         yolo_root = os.path.abspath("yolo_dataset_cache")
-        
+
         # We DO NOT clean previous runs here anymore to avoid race conditions
         # But we ensure the dataset folder structure is fresh
         dataset_path = os.path.join(yolo_root, "dataset")
         if os.path.exists(dataset_path):
             shutil.rmtree(dataset_path)
-            
+
         print(f" Preparing YOLO data structure in {dataset_path}...")
         create_yolo_structure(train_df, "train", dataset_path)
         create_yolo_structure(val_df, "val", dataset_path)
-        
+
         # 2. Initialize Model
         print("🤖 Initializing YOLOv8 Nano model...")
-        model = YOLO('yolov8n-cls.pt') 
-        
+        model = YOLO('yolov8n-cls.pt')
+
         # 3. Train
         # We define explicit project/name paths so we know where to find the weights later
         project_path = os.path.join(yolo_root, "ovoscan_train_runs")
         run_name = "experiment_1"
-        
+
         print(f" Starting Training for {epochs} epochs on GPU...")
         model.train(
             data=dataset_path,
             epochs=epochs,
             imgsz=224,
             batch=batch_size,
-            device=0,           
+            device=0,
             project=project_path,
             name=run_name,
-            exist_ok=True       
+            exist_ok=True
         )
-        
+
         # 4. CRITICAL FIX: Reload the clean model from disk
         # This removes the un-pickleable DataLoaders
         best_weights_path = os.path.join(project_path, run_name, "weights", "best.pt")
         print(f"💾 Loading best weights from {best_weights_path} for artifact storage...")
-        
+
         clean_model = YOLO(best_weights_path)
-        
+
         return clean_model
 
     except Exception as e:

@@ -1,12 +1,12 @@
 """Tests for the model monitoring utilities."""
 import pytest
+
 from src.utils.monitoring import (
     PredictionTracker,
-    record_prediction,
-    record_inference_error,
-    set_model_loaded,
     get_monitoring_summary,
-    tracker,
+    record_inference_error,
+    record_prediction,
+    set_model_loaded,
 )
 
 
@@ -34,7 +34,7 @@ class TestPredictionTracker:
     def test_tracker_window_size(self):
         """Tracker should respect window size."""
         t = PredictionTracker(window_size=3)
-        for i in range(10):
+        for _i in range(10):
             t.record("fertile", 0.9)
 
         assert len(t.predictions) == 3

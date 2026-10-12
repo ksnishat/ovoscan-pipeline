@@ -3,18 +3,17 @@ OvoScan Dash Callbacks
 All callback registrations for the multi-page dashboard
 """
 
-import os
 import base64
 import io
-import requests
-import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
-from dash import Input, Output, State, callback_context, no_update, html, dcc, ALL
-import dash_bootstrap_components as dbc
-from PIL import Image
-import numpy as np
+import os
 
+import dash_bootstrap_components as dbc
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import requests
+from dash import Input, Output, State, html, no_update
+from PIL import Image
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
@@ -29,8 +28,10 @@ def register_callbacks(app):
     )
     def render_page(pathname):
         from src.dash_app.layouts import (
-            create_home_layout, create_inspect_layout,
-            create_metrics_layout, create_models_layout
+            create_home_layout,
+            create_inspect_layout,
+            create_metrics_layout,
+            create_models_layout,
         )
         if pathname == "/inspect":
             return create_inspect_layout()
@@ -283,7 +284,7 @@ def register_callbacks(app):
             if response.status_code == 200:
                 data = response.json()
                 fig = go.Figure()
-                for i, (precision, recall) in enumerate(zip(data["precision"], data["recall"])):
+                for i, (precision, recall) in enumerate(zip(data["precision"], data["recall"], strict=False)):
                     fig.add_trace(go.Scatter(x=recall, y=precision, name=data["labels"][i], mode="lines"))
                 fig.update_layout(template="plotly_white", height=300, xaxis_title="Recall", yaxis_title="Precision")
                 return fig

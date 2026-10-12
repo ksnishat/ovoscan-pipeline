@@ -7,20 +7,14 @@ import os
 import sys
 from pathlib import Path
 
-import dash
-from dash import Dash, html, dcc, Input, Output, State, callback
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
-import plotly.express as px
-import requests
-import pandas as pd
-import numpy as np
+from dash import Dash, dcc, html
 
 # Add src to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.dash_app.layouts import create_navbar, create_home_layout, create_inspect_layout, create_metrics_layout, create_models_layout
 from src.dash_app.callbacks import register_callbacks
+from src.dash_app.layouts import create_navbar
 
 # API Configuration
 API_URL = os.getenv("API_URL", "http://localhost:8000")

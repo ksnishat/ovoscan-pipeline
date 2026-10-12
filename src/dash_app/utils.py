@@ -4,15 +4,14 @@ Helper functions for the dashboard
 """
 
 import os
-import requests
-from typing import Dict, Any, Optional
-import pandas as pd
+from typing import Any
 
+import requests
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 
-def call_api(endpoint: str, method: str = "GET", data: Dict = None, files: Dict = None, timeout: int = 30) -> Optional[Dict]:
+def call_api(endpoint: str, method: str = "GET", data: dict = None, files: dict = None, timeout: int = 30) -> dict | None:
     """
     Generic API call helper
 

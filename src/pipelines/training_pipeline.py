@@ -1,7 +1,9 @@
 from zenml import pipeline
+
 from src.steps.ingest import ingest_data
 from src.steps.split import split_data
 from src.steps.train import train_model
+
 
 @pipeline
 def ovoscan_training_pipeline(
@@ -11,7 +13,7 @@ def ovoscan_training_pipeline(
 ):
     """
     Orchestrates the End-to-End Training Flow.
-    
+
     Flow:
     1. Ingest Data (Raw Folders -> DataFrame)
     2. Split Data (DataFrame -> Train/Val)
@@ -19,14 +21,18 @@ def ovoscan_training_pipeline(
     """
     # 1. Ingest
     df = ingest_data(data_dir=data_path)
-    
+
     # 2. Split
     train_df, val_df = split_data(df=df)
-    
+
     # 3. Train
     model = train_model(
-        train_df=train_df, 
+        train_df=train_df,
         val_df=val_df,
         epochs=epochs,
         batch_size=batch_size
     )
+
+    # Return the trained model so ZenML records it as the pipeline output and
+    # downstream steps or callers can consume it.
+    return model
