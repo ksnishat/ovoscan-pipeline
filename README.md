@@ -208,7 +208,7 @@ are excluded from CI (which has no model checkpoint or dataset) and run against
 real services instead of an in-process `TestClient`:
 
 ```bash
-./start_all_stacks.sh ovoscan
+./run_stack.sh
 LIVE_STACK=1 pytest tests/test_integration_live.py -v   # 9 passed
 ```
 
@@ -220,9 +220,9 @@ MinIO are reachable.
 ## Monitoring & Live Demo
 
 ```bash
-./start_all_stacks.sh ovoscan    # API + MLflow + MinIO + Prometheus + Grafana
-python3 provision_dashboards.py  # datasource + dashboard
-./verify_live_stack.sh ovoscan   # 7 checks, exit 0 when all pass
+./run_stack.sh                   # API + MLflow + MinIO + Prometheus + Grafana
+python3 provision_dashboards.py ovoscan   # datasource + dashboard
+./verify_stack.sh                 # 7 checks, exit 0 when all pass
 ```
 
 | Service | URL | Credentials |
@@ -330,7 +330,9 @@ ovoscan-pipeline/
 │       ├── logging_config.py   # Structured JSON logging
 │       ├── monitoring.py       # Prometheus metrics + drift tracking
 │       └── config.py           # Pydantic settings
-├── tests/                      # Unit tests
+├── tests/                      # 30 unit + 9 integration tests
+├── run_stack.sh                # Start API + MLflow + MinIO + Prometheus + Grafana
+├── verify_stack.sh             # 7 live-stack health checks
 ├── k8s/                        # Kubernetes manifests
 ├── helm-chart/                 # Helm chart for K8s
 ├── infrastructure/docker/      # Dockerfiles (incl. Dockerfile.mlflow)
