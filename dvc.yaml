@@ -1,96 +1,40 @@
 # DVC Pipeline for OvoScan
-# Bronze → Silver → Gold quality inspection pipeline
-
+# Bronze -> Silver -> Train
+#
+# Every stage below references a script that exists in this repository and
+# declares outputs that the script actually produces. Run the whole pipeline
+# with `dvc repro`, or a single stage with `dvc repro <stage>`.
+#
+# The raw dataset is not committed. Fetch it first (see the README) and place
+# it at data/raw, or pass a different --source.
 stages:
-  # === BRONZE LAYER: Raw data ingestion ===
+  # === BRONZE LAYER: raw images copied into a versioned layer ===
   extract_bronze:
-    cmd: python src/scripts/extract_bronze.py
+    desc: Copy raw images into the bronze layer, preserving class folders.
+    cmd: python src/scripts/extract_bronze.py --source data/raw --output data/bronze
     deps:
       - src/scripts/extract_bronze.py
     outs:
-      - data/bronze/images_raw.dvc
-      - data/bronze/metadata.dvc
-    desc: Collect raw quality inspection images (bronze layer)
+      - data/bronze
 
-  # === BRONZE → SILVER: Preprocessing ===
+  # === BRONZE -> SILVER: resize and normalise ===
   preprocess_silver:
-    cmd: python src/scripts/preprocess_silver.py
+    desc: Resize and normalise bronze images into the silver layer.
+    cmd: python src/scripts/preprocess_silver.py --input data/bronze --output data/silver --img-size 224
     deps:
       - src/scripts/preprocess_silver.py
-      - data/bronze/images_raw.dvc
+      - data/bronze
     outs:
-      - data/silver/images_processed.dvc
-      - data/silver/labels.dvc
-    metrics:
-      - metrics/silver_processing.json:
-          cache: false
-    desc: Resize, normalize, augment images (silver layer)
+      - data/silver
 
-  # === SILVER → GOLD: Dataset curation ===
-  prepare_gold:
-    cmd: python src/scripts/prepare_gold.py
-    deps:
-      - src/scripts/prepare_gold.py
-      - data/silver/images_processed.dvc
-      - data/silver/labels.dvc
-    outs:
-      - data/gold/yolo_dataset.dvc
-      - data/gold/splits.json
-    metrics:
-      - metrics/gold_dataset.json:
-          cache: false
-    desc: Create YOLO dataset splits with stratification (gold layer)
-
-  # === MODEL TRAINING ===
+  # === TRAIN: YOLOv8 classification on the silver layer ===
   train_yolo:
-    cmd: yolo train data=data/gold/yolo_dataset.yaml epochs=200 batch=32
+    desc: Train the YOLOv8 classification model on the silver layer.
+    cmd: python -c "from ultralytics import YOLO; m = YOLO('yolov8n-cls.pt'); m.train(data='data/silver', epochs=${training.epochs}, imgsz=224, batch=${training.batch_size})"
     deps:
-      - data/gold/yolo_dataset.dvc
-      - data/gold/yolo_dataset.yaml
-    outs:
-      - models/best.pt
-      - models/last.pt
-      - models/weights/best_weights.pth
-    metrics:
-      - metrics/model_metrics.json:
-          cache: false
-    plots:
-      - plots/training_curves.png:
-          cache: false
-      - plots/confusion_matrix.png:
-          cache: false
+      - data/silver
     params:
       - training.epochs
       - training.batch_size
-      - training.learning_rate
-    desc: Train YOLOv8 classification model for defect detection
-
-  # === MODEL EVALUATION ===
-  evaluate_model:
-    cmd: python src/scripts/evaluate_model.py
-    deps:
-      - src/scripts/evaluate_model.py
-      - models/best.pt
-      - data/gold/yolo_dataset.dvc
-    metrics:
-      - metrics/evaluation.json:
-          cache: false
-    plots:
-      - plots/precision_recall.png:
-          cache: false
-      - plots/rocurve.png:
-          cache: false
-    desc: Evaluate model on test set, generate metrics and plots
-
-  # === ZENML PIPELINE ===
-  zenml_pipeline:
-    cmd: python src/pipelines/training_pipeline.py
-    deps:
-      - src/pipelines/training_pipeline.py
-      - data/gold/yolo_dataset.dvc
     outs:
-      - models/zenml/
-    metrics:
-      - metrics/zenml_tracking.json:
-          cache: false
-    desc: Run full ZenML training pipeline with version control
+      - runs/classify

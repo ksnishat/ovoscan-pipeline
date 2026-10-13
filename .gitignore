@@ -51,6 +51,7 @@ ovoscan_train_runs/
 # --- DVC ---
 .dvc/cache/
 .dvc/tmp/
+.dvc/remote/
 
 # --- ZenML ---
 .zen/

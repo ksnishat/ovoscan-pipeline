@@ -26,22 +26,14 @@ gold:
   train_split: 0.7
   val_split: 0.2
   test_split: 0.1
+  # Matches egg_dataset/data.yaml: names: ['fertile', 'infertile']
   classes:
-    0: ok
-    1: cracked
-    2: chipped
-    3: misplaced
-    4: stained
+    0: fertile
+    1: infertile
 
 quality:
   defect_types:
-    - crack
-    - scratch
-    - dent
-    - corrosion
-    - contamination
+    - infertile
   severity_levels:
-    - critical
-    - major
-    - minor
     - ok
+    - reject
