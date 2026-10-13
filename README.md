@@ -200,14 +200,29 @@ docker compose up -d      # mlflow, api, frontend, prometheus, grafana
 ## Running Tests
 
 ```bash
-PYTHONPATH=src pytest tests/ -v      # 21 passed, 1 skipped
+PYTHONPATH=src pytest tests/ -v      # 30 passed, 10 skipped
 ```
+
+The 10 skipped tests are integration tests that need the live docker stack. They
+are excluded from CI (which has no model checkpoint or dataset) and run against
+real services instead of an in-process `TestClient`:
+
+```bash
+./start_all_stacks.sh ovoscan
+LIVE_STACK=1 pytest tests/test_integration_live.py -v   # 9 passed
+```
+
+They assert the API classifies a real image, that `/analyze-report` still returns
+a report when Ollama is down (template fallback, not a 500), that Prometheus is
+actually scraping the API (not merely healthy), and that MLflow, Grafana and
+MinIO are reachable.
 
 ## Monitoring & Live Demo
 
 ```bash
-./start_all_stacks.sh ovoscan    # API :8003 + Prometheus :9093 + Grafana :3000
+./start_all_stacks.sh ovoscan    # API + MLflow + MinIO + Prometheus + Grafana
 python3 provision_dashboards.py  # datasource + dashboard
+./verify_live_stack.sh ovoscan   # 7 checks, exit 0 when all pass
 ```
 
 | Service | URL | Credentials |
