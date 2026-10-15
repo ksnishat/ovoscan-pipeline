@@ -223,3 +223,43 @@ class TestOvoScanPredictionDrift:
             monitoring.record_prediction("fertile", 0.9, 0.01)
         psi = monitoring.compute_drift_psi()
         assert psi is not None and psi >= 0.25
+
+
+class TestBaselineMatchesModelClasses:
+    """The drift baseline must use the class names the model actually emits.
+
+    The classifier reports {0: 'defect', 1: 'fertile'}. A baseline keyed on
+    "infertile" compares against a class that never appears, so PSI reports a
+    large value for every stream — including a perfectly balanced one — which
+    makes the metric useless.
+    """
+
+    def test_default_baseline_uses_model_class_names(self):
+        from src.utils import monitoring
+
+        baseline = monitoring.DEFAULT_BASELINE
+        assert set(baseline) == {"fertile", "defect"}, (
+            f"baseline keys {set(baseline)} do not match the model's classes "
+            "{'fertile', 'defect'}"
+        )
+
+    def test_balanced_stream_against_default_baseline_is_stable(self):
+        from src.utils import monitoring
+
+        monitoring.tracker.reset()
+        monitoring.set_drift_baseline(monitoring.DEFAULT_BASELINE)
+        for i in range(60):
+            monitoring.record_prediction("fertile" if i % 2 == 0 else "defect", 0.9, 0.01)
+        psi = monitoring.compute_drift_psi()
+        assert psi is not None
+        assert psi < 0.10, f"a balanced stream should be stable, got PSI {psi}"
+
+    def test_skewed_stream_against_default_baseline_is_significant(self):
+        from src.utils import monitoring
+
+        monitoring.tracker.reset()
+        monitoring.set_drift_baseline(monitoring.DEFAULT_BASELINE)
+        for _ in range(100):
+            monitoring.record_prediction("defect", 0.9, 0.01)
+        psi = monitoring.compute_drift_psi()
+        assert psi is not None and psi >= 0.25

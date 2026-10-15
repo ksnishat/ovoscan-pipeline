@@ -119,7 +119,11 @@ tracker = PredictionTracker(window_size=100)
 
 # Baseline class distribution measured on the validation split. Overridable so
 # a retrained model can ship its own baseline without a code change.
-DEFAULT_BASELINE = {"fertile": 0.5, "infertile": 0.5}
+# These must match the class names the served model actually emits. The
+# classifier reports {0: 'defect', 1: 'fertile'}, so a baseline keyed on
+# "infertile" would compare against a class that never appears and report a
+# large PSI for every stream, including a perfectly balanced one.
+DEFAULT_BASELINE = {"fertile": 0.5, "defect": 0.5}
 _baseline_distribution: dict[str, float] = dict(DEFAULT_BASELINE)
 
 
