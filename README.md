@@ -243,7 +243,42 @@ python3 provision_dashboards.py ovoscan   # datasource + dashboard
 | `ovoscan_prediction_latency_seconds` | histogram | Inference latency |
 | `ovoscan_model_loaded` | gauge | 1 when the model is loaded, 0 otherwise |
 | `ovoscan_inference_errors_total` | counter | Inference failures |
-| `ovoscan_class_distribution` | gauge | Rolling class distribution (drift signal) |
+| `ovoscan_class_distribution` | gauge | Rolling class distribution |
+| `ovoscan_prediction_drift_psi` | gauge | PSI of the live prediction distribution vs the validation baseline |
+| `ovoscan_drift_status` | gauge | 0 stable, 1 moderate, 2 significant, -1 unknown |
+
+### Drift detection
+
+`ovoscan_class_distribution` is a rolling counter, not a drift metric: it has no
+baseline to compare against, so it cannot detect drift on its own. PSI is now
+computed against a reference distribution and exposed as
+`ovoscan_prediction_drift_psi`. `GET /monitoring` reports `drift_psi`,
+`drift_status` and the baseline in use.
+
+The baseline defaults to a balanced fertile/infertile split and is overridable
+via `set_drift_baseline` so a retrained model can ship its own reference.
+
+Verified discrimination: a balanced stream gives PSI 0.0 (stable) while a
+95%-fertile stream gives 1.33 (significant).
+
+### Scheduled retraining
+
+`dags/retraining_pipeline.py` runs weekly: retrain via the ZenML pipeline →
+reload the serving model → report drift.
+
+```bash
+docker compose up -d airflow-postgres airflow-webserver airflow-scheduler
+docker exec ovoscan_airflow_scheduler airflow dags unpause ovoscan_continuous_learning
+docker exec ovoscan_airflow_scheduler airflow dags trigger ovoscan_continuous_learning
+```
+
+Airflow UI: http://localhost:8084 (`admin` / `admin`).
+
+The pipeline runs in a subprocess (`src/run_training.py`). ZenML logs through the
+root logger and Airflow's `logging_mixin` re-logs its own stream, which forms a
+cycle that recurses until Python hits its recursion limit. A subprocess gives
+the pipeline its own logging state and also isolates heavy training from the
+scheduler process.
 
 ## RAG Quality Assistant
 
