@@ -1,8 +1,10 @@
+# Annotated was added to typing in Python 3.9; the Airflow image runs
+# 3.8, so the backport is required for the DAG to import these steps.
 import os
 import shutil
-from typing import Annotated
 
 import pandas as pd
+from typing_extensions import Annotated
 from ultralytics import YOLO
 from zenml import step
 
@@ -56,13 +58,17 @@ def train_model(
         project_path = os.path.join(yolo_root, "ovoscan_train_runs")
         run_name = "experiment_1"
 
-        print(f" Starting Training for {epochs} epochs on GPU...")
+        # Device is configurable: the Airflow image is CPU-only so it does not
+        # contend with the serving container for the GPU, and a hardcoded
+        # device=0 fails there with "Invalid CUDA 'device=0' requested".
+        device = os.getenv("OVOSCAN_DEVICE", "0")
+        print(f" Starting Training for {epochs} epochs on device={device}...")
         model.train(
             data=dataset_path,
             epochs=epochs,
             imgsz=224,
             batch=batch_size,
-            device=0,
+            device=device,
             project=project_path,
             name=run_name,
             exist_ok=True

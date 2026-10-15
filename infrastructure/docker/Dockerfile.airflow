@@ -1,0 +1,63 @@
+# FILE: infrastructure/docker/Dockerfile.airflow
+#
+# Airflow image for the OvoScan retraining DAG.
+#
+# The DAG imports the project's ZenML pipeline, so every dependency that
+# pipeline needs must be present here. A missing dependency makes the DAG fail
+# to parse and it silently disappears from the Airflow UI rather than reporting
+# an error, which is why the DAG imports them lazily inside the task callables.
+FROM apache/airflow:2.7.1
+
+USER root
+# The apache/airflow:2.7.1 base image ships an apt source for
+# apt.postgresql.org that no longer publishes a Release file for bullseye, so a
+# plain `apt-get update` fails with exit code 100. Drop that source first.
+#
+# libgl1/libglib2.0-0 are needed by ultralytics (OpenCV). The bullseye-security
+# repo no longer serves the versions the base image pins, so the security source
+# is dropped too and the packages come from the main bullseye repo.
+RUN rm -f /etc/apt/sources.list.d/pgdg.list && \
+    sed -i '/bullseye-security/d' /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends gcc libgl1 libglib2.0-0 && \
+    rm -rf /var/lib/apt/lists/*
+
+USER airflow
+
+# CPU-only torch: the DAG retrains on CPU so it does not contend with the
+# serving container for the GPU. --extra-index-url rather than --index-url,
+# because --index-url replaces PyPI entirely and transitive dependencies such as
+# typing-extensions then cannot be resolved.
+RUN pip install --no-cache-dir \
+    torch \
+    torchvision \
+    --extra-index-url https://download.pytorch.org/whl/cpu
+
+# SQLAlchemy is pinned below 2.0: Airflow 2.7.1 passes executemany_mode='values'
+# to psycopg2, which SQLAlchemy 2.x rejects with
+# "Invalid value for 'executemany_mode': 'values'", breaking `airflow db init`.
+RUN pip install --no-cache-dir \
+    "sqlalchemy<2.0" \
+    ultralytics \
+    zenml \
+    mlflow \
+    boto3 \
+    requests \
+    pandas \
+    scikit-learn \
+    pyyaml
+
+# ultralytics writes a settings file on first import and logs about it. Inside
+# an Airflow task that log line recurses through Airflow's log propagation until
+# Python hits its recursion limit, killing the task before training starts.
+# Generating the file at build time means the import is silent at runtime.
+ENV YOLO_CONFIG_DIR=/opt/airflow/.config/Ultralytics
+RUN mkdir -p "$YOLO_CONFIG_DIR" && \
+    python -c "from ultralytics import YOLO" >/dev/null 2>&1 || true
+
+# Training exports the retrained weights here. Docker initialises a fresh named
+# volume from the image's directory contents and ownership, so creating it as
+# the airflow user means the volume is writable without a manual chown.
+USER root
+RUN mkdir -p /opt/airflow/models && chown -R airflow:root /opt/airflow/models "$YOLO_CONFIG_DIR"
+USER airflow

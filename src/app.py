@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 
 import torch
 import uvicorn
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from PIL import Image
 
@@ -222,6 +222,36 @@ def metrics():
 def monitoring_summary():
     """Get monitoring summary for debugging and dashboards."""
     return get_monitoring_summary()
+
+
+@app.post("/admin/reload-model")
+def reload_model():
+    """Re-read the classifier weights from disk without restarting the API.
+
+    The retraining DAG writes new weights, then calls this so the fresh model is
+    served immediately. Disabled unless ENABLE_MODEL_RELOAD=true: swapping model
+    weights is a privileged operation and should not be reachable by default.
+    """
+    global model
+
+    if os.getenv("ENABLE_MODEL_RELOAD", "false").lower() not in {"1", "true", "yes"}:
+        raise HTTPException(
+            status_code=403,
+            detail="Model reload is disabled. Set ENABLE_MODEL_RELOAD=true to enable it.",
+        )
+
+    model_path = os.getenv("MODEL_PATH", "serving/model.pt")
+    if not os.path.exists(model_path):
+        raise HTTPException(status_code=500, detail=f"No model at {model_path}")
+
+    try:
+        model = YOLO(model_path)
+        set_model_loaded(True)
+    except Exception as e:  # noqa: BLE001 - surface the reason to the caller
+        set_model_loaded(False)
+        raise HTTPException(status_code=500, detail=f"Reload failed: {e}") from e
+
+    return {"status": "reloaded", "model_path": model_path}
 
 
 if __name__ == "__main__":

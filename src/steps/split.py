@@ -1,13 +1,15 @@
-
-from typing import Annotated
+# Annotated was added to typing in Python 3.9; the Airflow image runs
+# 3.8, so the backport is required for the DAG to import these steps.
+from typing import Tuple
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from typing_extensions import Annotated
 from zenml import step
 
 
 @step
-def split_data(df: pd.DataFrame) -> tuple[
+def split_data(df: pd.DataFrame) -> Tuple[
     Annotated[pd.DataFrame, "train_df"],
     Annotated[pd.DataFrame, "val_df"]
 ]:

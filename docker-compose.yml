@@ -217,6 +217,116 @@ services:
     networks:
       - ovoscan-network
 
+  # ==========================================
+  # 8. ORCHESTRATION (Airflow)
+  # ==========================================
+  # Postgres is Airflow's metadata database. It is separate from any
+  # application database: Airflow needs its own schema and migrations.
+  airflow-postgres:
+    image: postgres:15
+    container_name: ovoscan_airflow_postgres
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ovoscan-network
+
+  airflow-webserver:
+    image: ovoscan-airflow:latest
+    container_name: ovoscan_airflow_webserver
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.airflow
+    restart: unless-stopped
+    environment:
+      # LocalExecutor cannot use SQLite, so Postgres is required.
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      # MLflow runs on the host (port 5000), not as a compose service, so the
+      # container reaches it through the Docker gateway rather than by name.
+      - MLFLOW_TRACKING_URI=http://host.docker.internal:5000
+      - OVOSCAN_SRC=/opt/airflow/src
+      - OVOSCAN_DATA_DIR=/opt/airflow/dataset/train
+      - OVOSCAN_MODEL_DIR=/opt/airflow/models
+      # The Airflow image is CPU-only so retraining does not contend with
+      # the serving container for the GPU.
+      - OVOSCAN_DEVICE=cpu
+    volumes:
+      - ./dags:/opt/airflow/dags
+      # Mount src OUTSIDE the dags directory. Airflow scans everything under
+      # /opt/airflow/dags for DAG files, so mounting src there makes it try to
+      # parse every project module as a DAG and report import errors.
+      - ./src:/opt/airflow/src
+      # The dataset uses the YOLO images/+labels/ layout, so the split directory
+      # is mounted as-is rather than flattened.
+      - ./egg_dataset:/opt/airflow/dataset
+      # Named volume, not a bind mount: a host ./logs directory owned by root is
+      # not writable by the airflow user and Airflow fails to start.
+      - airflow_logs:/opt/airflow/logs
+      # Training exports the retrained weights here. ./src is a read-only bind
+      # mount, so the exports need their own writable volume.
+      - airflow_models:/opt/airflow/models
+    ports:
+      - "8084:8080"
+    command: webserver
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - ovoscan-network
+
+  airflow-scheduler:
+    image: ovoscan-airflow:latest
+    container_name: ovoscan_airflow_scheduler
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.airflow
+    restart: unless-stopped
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - MLFLOW_TRACKING_URI=http://host.docker.internal:5000
+      - OVOSCAN_SRC=/opt/airflow/src
+      - OVOSCAN_DATA_DIR=/opt/airflow/dataset/train
+      - OVOSCAN_MODEL_DIR=/opt/airflow/models
+      # The Airflow image is CPU-only so retraining does not contend with
+      # the serving container for the GPU.
+      - OVOSCAN_DEVICE=cpu
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./egg_dataset:/opt/airflow/dataset
+      - airflow_logs:/opt/airflow/logs
+      - airflow_models:/opt/airflow/models
+    command: scheduler
+    depends_on:
+      - airflow-webserver
+    networks:
+      - ovoscan-network
+
 networks:
   ovoscan-network:
     driver: bridge
@@ -227,3 +337,6 @@ volumes:
   mlflow_data:
   prometheus_data:
   grafana_data:
+  airflow_postgres_data:
+  airflow_logs:
+  airflow_models:
