@@ -8,6 +8,7 @@ Prometheus for real-time monitoring.
 import time
 from collections import deque
 
+import numpy as np
 from prometheus_client import Counter, Gauge, Histogram
 
 # --- Prometheus Metrics ---
@@ -47,6 +48,20 @@ prediction_class_distribution = Gauge(
     "ovoscan_class_distribution",
     "Current distribution of predicted classes",
     ["class_label"],
+)
+
+# PSI drift: compares the live prediction distribution against the distribution
+# observed on the validation set. A counter alone cannot detect drift because it
+# has no baseline to compare against.
+drift_psi = Gauge(
+    "ovoscan_prediction_drift_psi",
+    "Population Stability Index of the live prediction distribution vs the "
+    "validation baseline",
+)
+
+drift_status = Gauge(
+    "ovoscan_drift_status",
+    "Drift interpretation: 0=stable, 1=moderate, 2=significant, -1=unknown",
 )
 
 # Rolling window for drift detection
@@ -100,6 +115,78 @@ class PredictionTracker:
 tracker = PredictionTracker(window_size=100)
 
 
+# --- PSI drift against the validation baseline ---
+
+# Baseline class distribution measured on the validation split. Overridable so
+# a retrained model can ship its own baseline without a code change.
+DEFAULT_BASELINE = {"fertile": 0.5, "infertile": 0.5}
+_baseline_distribution: dict[str, float] = dict(DEFAULT_BASELINE)
+
+
+def set_drift_baseline(distribution: dict[str, float]) -> None:
+    """Set the reference class distribution used for PSI.
+
+    Args:
+        distribution: Mapping of class label to its proportion in the baseline.
+            Proportions are normalised, so raw counts are also accepted.
+    """
+    global _baseline_distribution
+
+    total = sum(distribution.values())
+    if total <= 0:
+        return
+    _baseline_distribution = {k: v / total for k, v in distribution.items()}
+
+
+def get_drift_baseline() -> dict[str, float]:
+    """Return the current reference distribution."""
+    return dict(_baseline_distribution)
+
+
+def compute_drift_psi(min_samples: int = 30) -> float | None:
+    """PSI between the live prediction distribution and the baseline.
+
+    Returns None when there are too few observations to be meaningful. PSI on a
+    handful of predictions is noise, not signal.
+    """
+    from src.utils.drift import compute_psi
+
+    live = tracker.get_class_distribution()
+    if not live or len(tracker.predictions) < min_samples:
+        return None
+
+    # Compare over the union of labels so a class that disappears entirely still
+    # contributes to the index rather than being silently ignored.
+    labels = sorted(set(live) | set(_baseline_distribution))
+    baseline_values = np.array([_baseline_distribution.get(c, 0.0) for c in labels])
+    live_values = np.array([live.get(c, 0.0) for c in labels])
+
+    # PSI needs a distribution, not a single proportion, so expand each class
+    # proportion into a weighted sample. This keeps the standard PSI formula
+    # while comparing categorical distributions.
+    n = 1000
+    baseline_sample = np.repeat(np.arange(len(labels)), (baseline_values * n).round().astype(int))
+    live_sample = np.repeat(np.arange(len(labels)), (live_values * n).round().astype(int))
+
+    if baseline_sample.size == 0 or live_sample.size == 0:
+        return None
+    return compute_psi(baseline_sample, live_sample, bins=max(2, len(labels)))
+
+
+def update_drift_metrics(min_samples: int = 30) -> float | None:
+    """Recompute PSI and publish it to Prometheus. Returns the PSI or None."""
+    from src.utils.drift import classify_psi
+
+    psi = compute_drift_psi(min_samples=min_samples)
+    if psi is None:
+        drift_status.set(-1)
+        return None
+
+    drift_psi.set(psi)
+    drift_status.set({"stable": 0, "moderate": 1, "significant": 2}.get(classify_psi(psi), -1))
+    return psi
+
+
 def record_prediction(prediction: str, confidence: float, latency: float):
     """
     Record a prediction and update all metrics.
@@ -120,6 +207,10 @@ def record_prediction(prediction: str, confidence: float, latency: float):
     for cls, ratio in dist.items():
         prediction_class_distribution.labels(class_label=cls).set(ratio)
 
+    # Recompute PSI against the baseline. Cheap (a rolling window of 100), and
+    # doing it here means the gauge is current without a separate poll.
+    update_drift_metrics()
+
 
 def record_inference_error():
     """Record an inference error."""
@@ -133,11 +224,17 @@ def set_model_loaded(loaded: bool):
 
 def get_monitoring_summary() -> dict:
     """Get a summary of current monitoring state."""
+    from src.utils.drift import classify_psi
+
+    psi = compute_drift_psi()
     return {
         "prediction_rate_per_sec": round(tracker.get_prediction_rate(), 2),
         "avg_confidence": round(tracker.get_avg_confidence(), 4),
         "class_distribution": tracker.get_class_distribution(),
         "window_size": tracker.window_size,
+        "drift_psi": round(psi, 6) if psi is not None else None,
+        "drift_status": classify_psi(psi) if psi is not None else "insufficient_data",
+        "drift_baseline": get_drift_baseline(),
         "total_predictions": sum(
             prediction_count.labels(class_label=c)._value.get()
             for c in ["fertile", "defect"]
