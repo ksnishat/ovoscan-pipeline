@@ -321,6 +321,10 @@ services:
       # The Airflow image is CPU-only so retraining does not contend with
       # the serving container for the GPU.
       - OVOSCAN_DEVICE=cpu
+      # The retraining DAG calls /admin/reload-model and /monitoring, both of
+      # which enforce X-API-Key. Without this the DAG got a 401 and failed.
+      # Must match the API_KEY the serving API was started with.
+      - API_KEY=${API_KEY:-demo-secret-key}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./src:/opt/airflow/src

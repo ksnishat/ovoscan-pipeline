@@ -106,6 +106,12 @@ def reload_serving_model(**context):
 
     try:
         request = urllib.request.Request(url, method="POST", data=b"")
+        # The serving API enforces X-API-Key on /admin/reload-model. Without
+        # this header the call returns 401, which is not in the skip list
+        # below, so the task raised and the whole DAG failed.
+        api_key = os.getenv("API_KEY")
+        if api_key:
+            request.add_header("X-API-Key", api_key)
         with urllib.request.urlopen(request, timeout=30) as response:
             payload = json.loads(response.read().decode())
         return {"status": "reloaded", "response": payload}
@@ -127,8 +133,15 @@ def report_drift(**context):
 
     url = os.getenv("OVOSCAN_MONITORING_URL", "http://host.docker.internal:8003/monitoring")
 
+    # /monitoring enforces X-API-Key. Without the header this returned 401 and
+    # the task silently reported "skipped", so the DAG recorded no drift state.
+    request = urllib.request.Request(url)
+    api_key = os.getenv("API_KEY")
+    if api_key:
+        request.add_header("X-API-Key", api_key)
+
     try:
-        with urllib.request.urlopen(url, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:
             payload = json.loads(response.read().decode())
         return {
             "status": "reported",

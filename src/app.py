@@ -228,6 +228,18 @@ def monitoring_summary():
     return get_monitoring_summary()
 
 
+@app.get("/drift", dependencies=[Depends(require_api_key)])
+def drift_summary():
+    """Drift state under the name the other three projects use.
+
+    This project originally exposed the same payload only at /monitoring, so
+    the README, the retraining DAG and the shared documentation all disagreed
+    about the endpoint name. /monitoring is kept because the DAG and the
+    dashboards already call it.
+    """
+    return get_monitoring_summary()
+
+
 @app.post("/admin/reload-model", dependencies=[Depends(require_api_key)])
 def reload_model():
     """Re-read the classifier weights from disk without restarting the API.
