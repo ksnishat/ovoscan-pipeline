@@ -37,7 +37,7 @@
 ☁️ **Terraform IaC** — Azure infrastructure as code (AKS, PostgreSQL, Redis, monitoring)
 🐛 **Compose fix** — `Dockerfile.mlflow` was referenced by `docker-compose.yml` but untracked; now committed
 🐛 **Test fixes** — FastAPI lifespan now runs in tests (`with TestClient(app) as c:`), ZenML 0.97 pipeline signature read via `entrypoint`, DVC CLI guarded with `shutil.which`
-✅ **Test suite green** — 21 passed, 1 skipped (was 7 failed)
+✅ **Test suite green** — 86 unit + 9 live integration tests passing (was 7 failed)
 
 ## Architecture
 
