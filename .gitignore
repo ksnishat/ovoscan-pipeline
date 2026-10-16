@@ -78,3 +78,9 @@ mlflow.db
 
 # --- live stack logs (created by run_stack.sh) ---
 .stack-logs/
+
+# --- Training output ---
+# MLflow and Ultralytics write run artifacts here (metrics, plots, batch
+# images). These are outputs, not source: 278 files were committed before
+# this was ignored, which is why the repository pack was 13 MB.
+runs/
