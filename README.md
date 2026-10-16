@@ -42,56 +42,29 @@
 ## Architecture
 
 ```mermaid
-graph TD
-    %% Data Sources
-    subgraph Data[Data Layer]
-        direction TB
-        Images[Inspection Images<br/>JPG/PNG/TIFF] --> Preprocessing[Image Preprocessing<br/>OpenCV]
-        DVC_Data[DVC Data Versioning<br/>DVC Remote Storage] --> ZenML[ZenML Pipeline<br/>Reproducible Runs]
-    end
-    
-    %% ML Pipeline
-    subgraph ML_Pipeline[ML Pipeline]
-        direction TB
-        ZenML --> YOLO[YOLOv8 Training<br/>Ultralytics]
-        YOLO --> Model_Registry[Model Registry<br/>MLflow + DVC]
-        Model_Registry --> API_Backend[FastAPI Backend<br/>Inference Service]
-    end
-    
-    %% GenAI Agent
-    subgraph GenAI[GenAI Agent Layer]
-        Ollama[ChromaDB + local LLM<br/>RAG Quality Assessment] -->|Input: Defect Data| Report[Quality Report<br/>German/English]
-        API_Backend --> Ollama
-    end
-    
-    %% Frontend & Monitoring
-    subgraph Frontend[Frontend & Monitoring]
-        direction TB
-        Dash[Plotly Dash Dashboard<br/>Multi-page Enterprise UI] -->|API Calls| API_Backend
-        Streamlit[Streamlit Dashboard<br/>Legacy UI] -->|API Calls| API_Backend
-        Grafana[Grafana Dashboard<br/>System Monitoring] --> Prometheus
-        Prometheus[Prometheus<br/>Metrics Collection] -->|Scrapes| API_Backend
-    end
-    
-    %% Deployment
-    subgraph Deployment[Deployment Options]
-        direction TB
-        Docker[Docker Compose<br/>Local Dev] --> K8s[Kubernetes<br/>Production]
-        K8s --> Helm[Helm Chart<br/>ovoscan-pipeline]
-        K8s --> Ingress[Nginx Ingress<br/>TLS Termination]
-        Ingress --> API_Service[API Service<br/>ClusterIP]
-        Ingress --> Dash_Service[Dash Service<br/>ClusterIP]
-    end
-    
-    %% Styling
-    classDef data fill:#f9f,stroke:#333,stroke-width:1px;
-    classDef ml fill:#bbf,stroke:#333,stroke-width:1px;
-    classDef frontend fill:#bfb,stroke:#333,stroke-width:1px;
-    classDef deploy fill:#fbb,stroke:#333,stroke-width:1px;
-    class Images,DVC_Data data;
-    class ZenML,YOLO,Model_Registry,API_Backend ml;
-    class Dash,Streamlit,Grafana,Prometheus frontend;
-    class Docker,K8s,Helm,Ingress,API_Service,Dash_Service deploy;
+flowchart LR
+    IMG["Egg images<br/>JPG / PNG"] --> PRE["Preprocessing<br/>YOLO dataset layout"]
+    PRE --> ZENML["ZenML pipeline<br/>ingest, split, train"]
+    ZENML --> YOLO["YOLOv8n-cls<br/>fertile / defect"]
+    YOLO --> MLflow["MLflow<br/>runs + metrics"]
+    MLflow --> API["FastAPI<br/>/predict"]
+    KB["Hatchery manual<br/>knowledge base"] --> RAG["RAG engine<br/>ChromaDB + LLM"]
+    API --> RAG
+    RAG --> REPORT["Quality report<br/>disposition guidance"]
+    API --> Prom["Prometheus"]
+    Prom --> Graf["Grafana"]
+
+    classDef data fill:#e3f2fd,stroke:#1565c0,stroke-width:1px,color:#0d47a1
+    classDef train fill:#fff3e0,stroke:#e65100,stroke-width:1px,color:#bf360c
+    classDef track fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px,color:#4a148c
+    classDef serve fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px,color:#1b5e20
+    classDef observe fill:#eceff1,stroke:#37474f,stroke-width:1px,color:#263238
+
+    class IMG,PRE,KB data
+    class ZENML,YOLO train
+    class MLflow track
+    class API,RAG,REPORT serve
+    class Prom,Graf observe
 ```
 
 ## Professional Feature Table
