@@ -203,3 +203,34 @@ class TestYoloLayoutIngest:
 
         df = _ingest_yolo_layout(str(tmp_path / "nothing"))
         assert df.empty
+
+
+class TestServingPublish:
+    """Training must publish weights to the path the API actually loads.
+
+    Without this the DAG trained a model and reported success while the API kept
+    loading the old weights from MODEL_PATH — every component green, the retrain
+    with no effect. The reload task only re-reads whatever is at MODEL_PATH, so
+    the copy in the training step is what closes the loop.
+    """
+
+    def test_train_step_publishes_to_model_path(self):
+        source = (REPO_ROOT / "src" / "steps" / "train.py").read_text()
+        assert "MODEL_PATH" in source, (
+            "the training step must read MODEL_PATH so it can publish the new "
+            "weights to the path the API loads"
+        )
+        assert "shutil.copy2" in source, (
+            "the training step must copy best.pt to MODEL_PATH"
+        )
+
+    def test_compose_mounts_serving_into_airflow(self):
+        yaml = pytest.importorskip("yaml")
+
+        compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text())
+        for service in ("airflow-webserver", "airflow-scheduler"):
+            volumes = compose["services"][service].get("volumes", [])
+            assert any("serving" in v for v in volumes), (
+                f"{service} must mount ./serving so the training step can write "
+                f"the checkpoint the API loads"
+            )

@@ -81,6 +81,22 @@ def train_model(
 
         clean_model = YOLO(best_weights_path)
 
+        # 5. Publish to the serving path.
+        #
+        # Without this the DAG trained a model and reported success while the API
+        # kept loading the old weights from MODEL_PATH — every component green,
+        # the retrain with no effect. The reload task that follows only re-reads
+        # whatever is at MODEL_PATH, so the copy is what closes the loop.
+        serving_path = os.getenv("MODEL_PATH", "serving/model.pt")
+        try:
+            serving_dir = os.path.dirname(serving_path)
+            if serving_dir:
+                os.makedirs(serving_dir, exist_ok=True)
+            shutil.copy2(best_weights_path, serving_path)
+            print(f"📦 Published new weights to {serving_path}")
+        except Exception as e:  # noqa: BLE001 - must not fail a good run
+            print(f"WARNING: could not publish weights to {serving_path}: {e}")
+
         return clean_model
 
     except Exception as e:

@@ -279,6 +279,10 @@ services:
       # Training exports the retrained weights here. ./src is a read-only bind
       # mount, so the exports need their own writable volume.
       - airflow_models:/opt/airflow/models
+      # The serving checkpoint. The API loads MODEL_PATH=serving/model.pt, so
+      # the training step must be able to write there; without this mount the
+      # retrain succeeds and the API keeps serving the old weights.
+      - ./serving:/opt/airflow/serving
     ports:
       - "8084:8080"
     command: webserver
@@ -321,6 +325,10 @@ services:
       - ./egg_dataset:/opt/airflow/dataset
       - airflow_logs:/opt/airflow/logs
       - airflow_models:/opt/airflow/models
+      # The serving checkpoint. The API loads MODEL_PATH=serving/model.pt, so
+      # the training step must be able to write there; without this mount the
+      # retrain succeeds and the API keeps serving the old weights.
+      - ./serving:/opt/airflow/serving
     command: scheduler
     depends_on:
       - airflow-webserver
