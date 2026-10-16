@@ -56,8 +56,16 @@ RUN mkdir -p "$YOLO_CONFIG_DIR" && \
     python -c "from ultralytics import YOLO" >/dev/null 2>&1 || true
 
 # Training exports the retrained weights here. Docker initialises a fresh named
-# volume from the image's directory contents and ownership, so creating it as
-# the airflow user means the volume is writable without a manual chown.
+# volume from the image's directory contents and ownership, so the directory
+# must be writable by the UID the container actually runs as.
+#
+# The container runs as an arbitrary UID with GID 0 (the Airflow image requires
+# GID 0), so these directories are made group-writable by root rather than
+# owned by the image's default airflow user. Owning them by uid 50000 meant a
+# container running as uid 1000 could not write, and publishing retrained
+# weights to MODEL_PATH failed with Permission denied.
 USER root
-RUN mkdir -p /opt/airflow/models && chown -R airflow:root /opt/airflow/models "$YOLO_CONFIG_DIR"
+RUN mkdir -p /opt/airflow/models && \
+    chown -R root:root /opt/airflow/models "$YOLO_CONFIG_DIR" && \
+    chmod -R 775 /opt/airflow/models "$YOLO_CONFIG_DIR"
 USER airflow

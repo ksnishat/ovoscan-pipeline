@@ -243,6 +243,7 @@ services:
   airflow-webserver:
     image: ovoscan-airflow:latest
     container_name: ovoscan_airflow_webserver
+    user: "${AIRFLOW_UID:-1000}:0"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     build:
@@ -301,6 +302,7 @@ services:
   airflow-scheduler:
     image: ovoscan-airflow:latest
     container_name: ovoscan_airflow_scheduler
+    user: "${AIRFLOW_UID:-1000}:0"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     build:
