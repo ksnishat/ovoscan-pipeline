@@ -103,10 +103,19 @@ Reproduced locally on an NVIDIA RTX 3050 Ti (4 GB).
 | Metric | Value |
 |--------|-------|
 | Dataset | `egg_dataset/` (YOLOv8 classification layout: `train/`, `valid/`, `test/`) |
-| Classes | `defect`, `good` |
+| Labelled images | 139 train (72 fertile / 67 infertile) |
+| Classes | `fertile`, `infertile` (from `egg_dataset/data.yaml`) |
 | Base model | YOLOv8n-cls |
-| **Top-1 accuracy** | **97.2%** (`accuracy_top1 = 0.97193` in `runs/classify/train/results.csv`) |
+| **Top-1 accuracy** | **97.2%** (`accuracy_top1 = 0.97193` in `ovoscan_train_runs/experiment_1/results.csv`) |
 | Pipeline | ZenML (ingest → validate → train → evaluate → register) |
+
+### Honest framing
+
+97.2% top-1 on 139 images has a wide confidence interval — roughly ±4 percentage
+points — so it should not be claimed to generalise without a larger held-out
+set. The task is also binary with visually distinct classes under candling, so a
+high number is expected. The interesting engineering here is the pipeline and
+the RAG agent, not the accuracy.
 
 The 97.2% figure is read directly from the training run's `results.csv`. The
 served checkpoint is the one produced by that run.
@@ -123,10 +132,19 @@ pip install -r requirements.txt
 
 ### 2. Train
 
+The ZenML pipeline is the supported path — it handles ingest, validation, the
+YOLO layout, and MLflow logging:
+
+```bash
+python src/run_training.py
+```
+
+To run YOLO directly instead (bypassing ZenML):
+
 ```bash
 python -c "from ultralytics import YOLO; \
 m = YOLO('yolov8n-cls.pt'); \
-m.train(data='egg_dataset', epochs=30, imgsz=224, batch=16)"
+m.train(data='egg_dataset', epochs=5, imgsz=224, batch=16)"
 ```
 
 Copy the best checkpoint into `models/`:

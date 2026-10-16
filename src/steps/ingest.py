@@ -18,6 +18,12 @@ CLASS_MAPPING = {
 # The Roboflow export uses YOLO detection layout: images/ and labels/ side by
 # side, with the class index as the first token of each label file. The class
 # names come from the dataset's data.yaml.
+#
+# These are the *dataset's* names. They are mapped through CLASS_MAPPING before
+# use, so the YOLO path and the class-subdirectory path produce the same labels.
+# Without that mapping the YOLO path would emit "infertile" while the served
+# model and the drift baseline use "defect", and PSI would compare against a
+# class that never appears.
 YOLO_CLASS_NAMES = ["fertile", "infertile"]
 
 
@@ -62,7 +68,8 @@ def _ingest_yolo_layout(data_dir: str) -> pd.DataFrame:
         rows.append(
             {
                 "image_path": os.path.abspath(os.path.join(images_dir, filename)),
-                "label": YOLO_CLASS_NAMES[class_index],
+                "label": CLASS_MAPPING.get(YOLO_CLASS_NAMES[class_index],
+                                          YOLO_CLASS_NAMES[class_index]),
             }
         )
 

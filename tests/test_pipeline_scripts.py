@@ -155,3 +155,51 @@ class TestDvcPipelineDefinition:
                 section, _, key = param.partition(".")
                 assert section in params, f"{name} references unknown param section {section}"
                 assert key in params[section], f"{name} references unknown param {param}"
+
+
+class TestYoloLayoutIngest:
+    """The YOLO images/+labels/ path must emit the same labels as the class-dir path.
+
+    The dataset's data.yaml names the classes ``fertile`` and ``infertile``, but
+    the served classifier reports ``{0: 'defect', 1: 'fertile'}`` and the drift
+    baseline is keyed on ``defect``. If the YOLO path returned the raw dataset
+    names, PSI would compare against a class that never appears and report a
+    large drift value for every stream, including a perfectly balanced one.
+    """
+
+    def _write_yolo_split(self, root: Path, class_indices):
+        images = root / "images"
+        labels = root / "labels"
+        images.mkdir(parents=True, exist_ok=True)
+        labels.mkdir(parents=True, exist_ok=True)
+        for i, idx in enumerate(class_indices):
+            _make_image(images / f"img{i}.jpg")
+            (labels / f"img{i}.txt").write_text(f"{idx} 0.5 0.5 0.2 0.2\n")
+        return root
+
+    def test_maps_dataset_class_names_to_serving_labels(self, tmp_path):
+        from src.steps.ingest import _ingest_yolo_layout
+
+        root = self._write_yolo_split(tmp_path / "raw", [0, 1, 1])
+        df = _ingest_yolo_layout(str(root))
+
+        assert len(df) == 3
+        assert set(df["label"]) == {"fertile", "defect"}, (
+            "YOLO-layout ingest must emit the labels the served model uses "
+            "({'fertile', 'defect'}), not the raw dataset names"
+        )
+
+    def test_skips_images_without_a_label_file(self, tmp_path):
+        from src.steps.ingest import _ingest_yolo_layout
+
+        root = self._write_yolo_split(tmp_path / "raw", [0])
+        _make_image(root / "images" / "unlabelled.jpg")
+        df = _ingest_yolo_layout(str(root))
+
+        assert len(df) == 1, "an unlabelled image must be skipped, not guessed at"
+
+    def test_returns_empty_frame_when_no_images_dir(self, tmp_path):
+        from src.steps.ingest import _ingest_yolo_layout
+
+        df = _ingest_yolo_layout(str(tmp_path / "nothing"))
+        assert df.empty
