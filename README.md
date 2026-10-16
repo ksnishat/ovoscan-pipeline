@@ -15,7 +15,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![OS: Linux](https://img.shields.io/badge/OS-Linux-2F2F2F?style=flat)
 
-**OvoScan** is a production-grade computer vision pipeline for automated visual inspection in manufacturing. It leverages **ZenML** for reproducible ML pipelines, **YOLOv8 classification** (97.2% top-1 accuracy) for defect grading, and **RAG via Ollama** for quality assessment reports. The platform supports both Docker Compose for local development and Kubernetes for production deployment.
+**OvoScan** is a production-shaped computer vision pipeline for automated visual inspection in manufacturing. It leverages **ZenML** for reproducible ML pipelines, **YOLOv8 classification** (97.2% top-1 accuracy) for defect grading, and **RAG via Ollama** for quality assessment reports. The platform supports both Docker Compose for local development and Kubernetes for production deployment.
 
 ## Key Features
 
@@ -119,6 +119,45 @@ the RAG agent, not the accuracy.
 
 The 97.2% figure is read directly from the training run's `results.csv`. The
 served checkpoint is the one produced by that run.
+
+## Production readiness
+
+This is a **production-shaped** system, not a production-hardened one. The
+distinction matters, so here is exactly where it stands.
+
+### What is in place
+
+| Capability | Status |
+|-----------|--------|
+| End-to-end MLOps loop | Airflow retrains, MLflow tracks, the API hot-swaps weights without a restart |
+| Drift detection | PSI against a training-time baseline, exposed at `/drift` and as Prometheus gauges |
+| Alerting | 5 Prometheus rules per project, verified loading and evaluating |
+| Authentication | `X-API-Key` on `/predict`, `/drift` and `/admin/reload-model` when `API_KEY` is set |
+| TLS | nginx reverse proxy, TLSv1.2/1.3, security headers (`infrastructure/tls/`) |
+| Upload limits | 10 MiB default, enforced before the body is read (`MAX_UPLOAD_BYTES`) |
+| Self-healing | Watchdog restarts the API and MLflow if they crash; containers use `restart: unless-stopped` |
+| Tests | Unit + live integration suites, run in CI |
+| Load tested | Measured p50/p95/p99 and throughput — see `job_preparation/load_test_results.md` |
+
+### What is not in place
+
+| Gap | Why it matters |
+|-----|---------------|
+| **No multi-tenancy or RBAC** | One shared API key. No per-user identity, quotas or audit trail. |
+| **No secret management** | Credentials are environment variables with demo defaults. A deployment needs Vault, SOPS or a cloud secret store. |
+| **Single node, no HA** | One host, one worker process per API. No replication, no failover. |
+| **No sustained soak test** | Load figures are a 60-request burst, not a multi-hour run. |
+| **Drift thresholds not tuned** | 0.10 / 0.25 are the conventional PSI bands, not calibrated to this data. |
+| **No model rollback** | The reload endpoint swaps weights forward only. A bad model needs a manual revert. |
+
+### The honest one-line summary
+
+> "Production-shaped: the full MLOps loop, drift detection, alerting, auth, TLS
+> and self-healing are all in place and verified. Not production-hardened: no
+> RBAC, no secret manager, single node, and the load numbers are a burst rather
+> than a soak test."
+
+---
 
 ## Quickstart
 
