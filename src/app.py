@@ -17,9 +17,12 @@ from contextlib import asynccontextmanager
 
 import torch
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from PIL import Image
+
+from src.auth import auth_enabled, require_api_key
+from src.uploads import enforce_content_length, read_upload
 
 # Import monitoring utilities
 from src.utils.monitoring import (
@@ -162,14 +165,15 @@ def health_check():
         "model_loaded": model is not None,
         "rag_available": agent is not None,
         "device": torch_device,
+        "auth_enabled": auth_enabled(),
     }
 
 
-@app.post("/predict")
+@app.post("/predict", dependencies=[Depends(require_api_key), Depends(enforce_content_length)])
 async def predict(file: UploadFile = File(...)):
     """Accepts an image, runs inference, and returns prediction."""
     try:
-        contents = await file.read()
+        contents = await read_upload(file)
         result = _detect_image(contents)
 
         return {
@@ -187,11 +191,11 @@ async def predict(file: UploadFile = File(...)):
         return {"status": "error", "message": str(e)}
 
 
-@app.post("/analyze-report")
+@app.post("/analyze-report", dependencies=[Depends(require_api_key), Depends(enforce_content_length)])
 async def analyze_report(file: UploadFile = File(...)):
     """Full safety report: detection + RAG analysis."""
     try:
-        contents = await file.read()
+        contents = await read_upload(file)
         result = _detect_image(contents)
 
         report = _generate_report(result["prediction"], result["confidence"])
@@ -218,13 +222,13 @@ def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.get("/monitoring")
+@app.get("/monitoring", dependencies=[Depends(require_api_key)])
 def monitoring_summary():
     """Get monitoring summary for debugging and dashboards."""
     return get_monitoring_summary()
 
 
-@app.post("/admin/reload-model")
+@app.post("/admin/reload-model", dependencies=[Depends(require_api_key)])
 def reload_model():
     """Re-read the classifier weights from disk without restarting the API.
 
