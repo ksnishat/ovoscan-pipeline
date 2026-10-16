@@ -30,9 +30,11 @@ GRAFANA_PORT=3000
 PROJECT="ovoscan"
 ENV_NAME="ovoscan-env"
 API_IMPORT="from app import app"
-# OLLAMA_MODEL must name a tag that is actually pulled; see the note in
-# aeropredict-platform/run_stack.sh.
-MODEL_ENV="MODEL_PATH=serving/model.pt ENABLE_MODEL_RELOAD=true OLLAMA_MODEL=llama3.2:1b"
+# OLLAMA_MODEL is left unset on purpose: the RAG module resolves it against
+# the tags Ollama actually has pulled and warns when the configured tag is
+# missing. Hardcoding a tag here would mask that warning on a machine with
+# a different model set.
+MODEL_ENV="MODEL_PATH=serving/model.pt ENABLE_MODEL_RELOAD=true"
 
 log()  { printf '\033[1;34m[%s]\033[0m %s\n' "$(date +%H:%M:%S)" "$*"; }
 ok()   { printf '  \033[0;32m\u2713\033[0m %s\n' "$*"; }

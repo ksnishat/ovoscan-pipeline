@@ -263,3 +263,62 @@ class TestBaselineMatchesModelClasses:
             monitoring.record_prediction("defect", 0.9, 0.01)
         psi = monitoring.compute_drift_psi()
         assert psi is not None and psi >= 0.25
+
+
+class TestOllamaModelResolution:
+    """A configured tag that is not pulled must not fail silently.
+
+    The API previously used the code default "llama3.2" while only "llama3.2:1b"
+    was pulled, so /analyze-report fell back to a template while /health still
+    reported rag_available: true.
+    """
+
+    TAGS = ["llama3.2:1b", "llava:7b", "gemma:latest"]
+
+    def test_present_tag_is_used_as_is(self):
+        from src.agent.rag import resolve_llm_model
+
+        model, warning = resolve_llm_model("llama3.2:1b", "http://x", self.TAGS)
+        assert model == "llama3.2:1b"
+        assert warning is None
+
+    def test_missing_tag_falls_back_to_the_same_family(self):
+        from src.agent.rag import resolve_llm_model
+
+        model, warning = resolve_llm_model("llama3.2", "http://x", self.TAGS)
+        assert model == "llama3.2:1b"
+        assert warning and "llama3.2" in warning
+
+    def test_unreachable_server_keeps_the_requested_tag(self):
+        from src.agent.rag import resolve_llm_model
+
+        model, warning = resolve_llm_model("llama3.2", "http://x", [])
+        assert model == "llama3.2"
+        assert warning is None
+
+    def test_warning_names_the_available_tags(self):
+        from src.agent.rag import resolve_llm_model
+
+        _, warning = resolve_llm_model("llama3.2", "http://x", self.TAGS)
+        for tag in self.TAGS:
+            assert tag in warning
+
+    def test_hatchery_agent_actually_calls_the_resolver(self, monkeypatch):
+        """The resolver existing is not enough; it must be wired in."""
+        from src.agent import rag
+
+        calls = []
+
+        def spy(requested, base_url, available=None):
+            calls.append(requested)
+            return "spy-model", "spy-warning"
+
+        monkeypatch.setattr(rag, "resolve_llm_model", spy)
+        monkeypatch.setattr(rag, "HuggingFaceEmbeddings", lambda **kw: object())
+        monkeypatch.setattr(rag, "Ollama", lambda **kw: object())
+
+        agent = rag.HatcheryAgent(knowledge_base_path="x", llm_model="llama3.2")
+
+        assert calls == ["llama3.2"], "HatcheryAgent did not call resolve_llm_model"
+        assert agent.llm_model_name == "spy-model"
+        assert agent.model_warning == "spy-warning"
