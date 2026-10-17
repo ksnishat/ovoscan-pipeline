@@ -465,7 +465,7 @@ ovoscan-pipeline/
 | **ZenML stack not registered** | Run `zenml stack register` with the correct orchestrator/artifact/metadata stores |
 | **DVC remote not accessible** | Check the DVC remote storage configuration (S3/GCS/Azure) |
 | **Ollama connection refused** | Verify Ollama is running on port 11434 |
-| **Grafana shows "No data"** | Re-run `provision_dashboards.py` so the datasource points at the Prometheus container IP |
+| **Grafana shows "No data"** | The provisioning or dashboards directory is not mounted, or Grafana is not on the `mlops-stack` network so it cannot resolve `prom_<project>` | Run `python3 provision_dashboards.py` — it reports which of the two it is |
 | **GPU not detected in K8s** | Install the NVIDIA device plugin and ensure GPU nodes are available |
 
 ## Author
