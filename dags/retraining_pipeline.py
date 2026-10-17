@@ -148,8 +148,17 @@ def report_drift(**context):
             "drift_psi": payload.get("drift_psi"),
             "drift_status": payload.get("drift_status"),
         }
-    except (urllib.error.URLError, urllib.error.HTTPError) as exc:
-        return {"status": "skipped", "reason": str(exc)}
+    except urllib.error.HTTPError as exc:
+        # A 401/403 means we were rejected, not that the API is absent. That is
+        # a misconfiguration and must fail the run rather than pass silently.
+        if exc.code in (401, 403):
+            raise RuntimeError(
+                f"drift endpoint rejected the request (HTTP {exc.code}). "
+                "Check that API_KEY matches the serving API."
+            ) from exc
+        return {"status": "skipped", "reason": f"HTTP {exc.code}"}
+    except urllib.error.URLError as exc:
+        return {"status": "skipped", "reason": f"API unreachable: {exc.reason}"}
 
 
 default_args = {
