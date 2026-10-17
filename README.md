@@ -207,7 +207,31 @@ distinction matters, so here is exactly where it stands.
 
 ## Quickstart
 
-### 1. Environment Setup
+### 1. Get the dataset
+
+The dataset is **Dataset new v6 (Dataset Baru Revisi)**, a Roboflow Universe
+dataset of egg images released under CC BY 4.0. It is not committed here.
+
+- [Dataset new on Roboflow Universe](https://universe.roboflow.com/skripsi-gqi1u/dataset-new-c9tqt)
+
+Download it in **YOLOv8 Classification** format and unzip it to the repository
+root, so the layout matches what the training script expects:
+
+```bash
+# after downloading and unzipping the classification export
+ls egg_dataset/
+# data.yaml  train/  valid/  test/
+ls egg_dataset/valid/images/ | head -3
+```
+
+The dataset is a classification layout (`valid/images/`, not `valid/defect/`),
+which is what `data.yaml` declares.
+
+**Without the dataset** you can still run the API, the tests and the load test:
+the model checkpoint is committed, and the integration tests skip cleanly when
+the data is absent.
+
+### 2. Environment Setup
 
 ```bash
 conda create -n ovoscan-env python=3.10 -y
@@ -215,7 +239,7 @@ conda activate ovoscan-env
 pip install -r requirements.txt
 ```
 
-### 2. Train
+### 3. Train
 
 The ZenML pipeline is the supported path — it handles ingest, validation, the
 YOLO layout, and MLflow logging:
@@ -238,7 +262,7 @@ Copy the best checkpoint into `models/`:
 cp runs/classify/train/weights/best.pt models/ovoscan_cls_best.pt
 ```
 
-### 3. Run the ZenML pipeline
+### 4. Run the ZenML pipeline
 
 ```bash
 zenml init
@@ -246,13 +270,13 @@ zenml stack register ovoscan_stack -a localhost -o localhost -d localhost
 python -m src.pipeline.training_pipeline
 ```
 
-### 4. Start the API
+### 5. Start the API
 
 ```bash
 PYTHONPATH=src uvicorn app:app --host 0.0.0.0 --port 8003
 ```
 
-### 5. Verify
+### 6. Verify
 
 ```bash
 # The root path is the health endpoint; there is no /health route.
@@ -267,7 +291,7 @@ curl -X POST http://localhost:8003/predict -F "file=@$IMG"
 # {"filename":"...","prediction":"defect","confidence":0.997,"status":"success"}
 ```
 
-### 6. Or launch the whole Docker stack
+### 7. Or launch the whole Docker stack
 
 ```bash
 docker compose up -d      # mlflow, api, frontend, prometheus, grafana
