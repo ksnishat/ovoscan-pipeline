@@ -17,11 +17,13 @@ from contextlib import asynccontextmanager
 
 import torch
 import uvicorn
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from PIL import Image
 
 from src.auth import auth_enabled, require_api_key
+from src.ratelimit import PREDICT_LIMIT, REPORT_LIMIT, limiter
+from src.ratelimit import install as install_rate_limit
 from src.uploads import enforce_content_length, read_upload
 
 # Import monitoring utilities
@@ -31,6 +33,7 @@ from src.utils.monitoring import (
     record_prediction,
     set_model_loaded,
 )
+from src.versioning import install as install_versioning
 
 # Try to import YOLO
 try:
@@ -154,6 +157,7 @@ app = FastAPI(
     version="2.1.0",
     lifespan=lifespan,
 )
+install_rate_limit(app)
 
 
 @app.get("/")
@@ -170,7 +174,8 @@ def health_check():
 
 
 @app.post("/predict", dependencies=[Depends(require_api_key), Depends(enforce_content_length)])
-async def predict(file: UploadFile = File(...)):
+@limiter.limit(PREDICT_LIMIT)
+async def predict(request: Request, file: UploadFile = File(...)):
     """Accepts an image, runs inference, and returns prediction."""
     try:
         contents = await read_upload(file)
@@ -192,7 +197,8 @@ async def predict(file: UploadFile = File(...)):
 
 
 @app.post("/analyze-report", dependencies=[Depends(require_api_key), Depends(enforce_content_length)])
-async def analyze_report(file: UploadFile = File(...)):
+@limiter.limit(REPORT_LIMIT)
+async def analyze_report(request: Request, file: UploadFile = File(...)):
     """Full safety report: detection + RAG analysis."""
     try:
         contents = await read_upload(file)
@@ -272,3 +278,14 @@ def reload_model():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001, reload=False)
+
+
+# ---------------------------------------------------------------------------
+# API versioning
+# ---------------------------------------------------------------------------
+# Called at the *end* of the module on purpose. `install_versioning` clones the
+# routes that already exist, so running it next to `install_rate_limit(app)`
+# (before any @app.post/@app.get has executed) would find nothing to clone and
+# silently alias zero endpoints. Keeping it last means every route defined above
+# gets a /v1 alias, and the unversioned paths keep working unchanged.
+install_versioning(app)

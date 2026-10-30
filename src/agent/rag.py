@@ -28,6 +28,8 @@ from langchain_core.prompts import PromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from src.retry import retry_transient
+
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 DEFAULT_LLM_MODEL = "llama3.2"
 DEFAULT_PERSIST_DIR = "data/chroma"
@@ -256,7 +258,17 @@ class HatcheryAgent:
 
         chunks = self.retrieve(query, k=4)
         context = "\n\n---\n\n".join(c["content"] for c in chunks)
-        return self.chain.invoke({"context": context, "question": query})
+        return _invoke_chain(self.chain, context, query)
+
+
+@retry_transient(attempts=3, base_delay=0.4, max_delay=4.0)
+def _invoke_chain(chain, context: str, query: str):
+    """Run the RAG chain, retrying only transient transport failures.
+
+    Ollama returns 503 while loading a model and drops connections under
+    concurrent load; both are transient and must not surface as a 500.
+    """
+    return chain.invoke({"context": context, "question": query})
 
 
 if __name__ == "__main__":
