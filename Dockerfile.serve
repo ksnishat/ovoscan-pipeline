@@ -1,0 +1,60 @@
+# ============================================================
+# Slim serving image for OvoScan.
+#
+# docker/Dockerfile.api installs whatever "pip install torch" resolves to,
+# which is the CUDA build (multi-gigabyte nvidia wheels). The API only does CPU
+# inference, so this image pins torch to the CPU wheel index instead.
+#
+# The RAG agent (src/agent/rag.py) is optional at import time: app.py wraps the
+# import in a try/except, so the image serves predictions without an LLM.
+# ============================================================
+
+FROM python:3.10-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-serve.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements-serve.txt
+
+# ---- Runtime ----
+FROM python:3.10-slim AS runtime
+
+WORKDIR /app
+
+# libgl1 and libglib2.0-0 are required by opencv at import time.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /install /usr/local
+
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+COPY src/ ./src/
+COPY serving/ ./serving/
+COPY knowledge_base/ ./knowledge_base/
+
+ENV PATH=/usr/local/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    MODEL_PATH=serving/model.pt \
+    YOLO_CONFIG_DIR=/tmp/Ultralytics \
+    OLLAMA_HOST=http://host.docker.internal:11434
+
+RUN chown -R appuser:appuser /app
+USER appuser
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/')" || exit 1
+
+EXPOSE 8000
+
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]

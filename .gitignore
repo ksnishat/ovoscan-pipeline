@@ -86,3 +86,10 @@ mlflow.db
 # images). These are outputs, not source: 278 files were committed before
 # this was ignored, which is why the repository pack was 13 MB.
 runs/
+
+# Terraform local state and cached providers must never be committed: state
+# contains every resource attribute, including passwords the provider stores.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log

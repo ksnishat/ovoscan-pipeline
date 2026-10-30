@@ -1,0 +1,18 @@
+# Minimal serving dependencies for the OvoScan inference API.
+#
+# requirements.txt is a full environment freeze (DVC, ZenML, MLflow, Jupyter,
+# Airflow-adjacent packages). The API only needs CPU torch, ultralytics for
+# inference, Pillow for image decoding and FastAPI to serve it.
+#
+# torch is installed from the CPU-only index so the image does not pull ~3 GB
+# of nvidia wheels it cannot use on a free-tier CPU host.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.9.1
+torchvision==0.24.1
+ultralytics==8.4.175
+fastapi==0.115.6
+uvicorn==0.34.0
+pillow==12.0.0
+numpy==2.2.6
+prometheus-client==0.23.1
+python-multipart==0.0.20
