@@ -122,7 +122,7 @@ def retry_transient(attempts: int = DEFAULT_ATTEMPTS,
         # set equal to the base delay so simultaneous failures (all workers hit
         # the same dependency restart) fan out instead of retrying in lockstep.
         wait=wait_exponential_jitter(
-            multiplier=max(0.0, base_delay),
+            initial=max(0.0, base_delay),
             max=max_delay,
             jitter=max(0.0, base_delay),
         ),
