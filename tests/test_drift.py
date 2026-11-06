@@ -303,6 +303,30 @@ class TestOllamaModelResolution:
         for tag in self.TAGS:
             assert tag in warning
 
+    def test_bare_name_matches_its_latest_tag(self):
+        """Ollama reports ``llama3.2:latest``; a configured ``llama3.2`` is the
+        same model and must not be reported as missing."""
+        from src.agent.rag import resolve_llm_model
+
+        model, warning = resolve_llm_model("llama3.2", "http://x", ["llama3.2:latest"])
+        assert model == "llama3.2:latest"
+        assert warning is None
+
+    def test_explicit_latest_matches_a_bare_available_tag(self):
+        from src.agent.rag import resolve_llm_model
+
+        model, warning = resolve_llm_model("llama3.2:latest", "http://x", ["llama3.2"])
+        assert model == "llama3.2"
+        assert warning is None
+
+    def test_bare_name_does_not_match_a_different_tag(self):
+        """Normalisation must not make every tag look like a match."""
+        from src.agent.rag import resolve_llm_model
+
+        model, warning = resolve_llm_model("llama3.2", "http://x", ["llama3.2:1b"])
+        assert model == "llama3.2:1b"
+        assert warning is not None
+
     def test_hatchery_agent_actually_calls_the_resolver(self, monkeypatch):
         """The resolver existing is not enough; it must be wired in."""
         from src.agent import rag
