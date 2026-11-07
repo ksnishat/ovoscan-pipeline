@@ -13,11 +13,15 @@ WORKDIR /app
 # We do NOT use --index-url .../cpu, so this installs GPU support by default.
 RUN pip install --no-cache-dir --default-timeout=1000 torch torchvision torchaudio ultralytics
 
-# 3. Install other dependencies
-COPY requirements.txt .
-# Exclude torch/ultralytics from requirements if listed there to avoid conflicts
-RUN grep -v "torch" requirements.txt | grep -v "ultralytics" > requirements_clean.txt || cp requirements.txt requirements_clean.txt
-RUN pip install --no-cache-dir --default-timeout=1000 -r requirements_clean.txt
+# 3. Install the remaining dependencies from the uv lock.
+# torch and ultralytics are installed above from the default index (GPU build),
+# so they are filtered out of the exported set to avoid pip replacing them with
+# the CPU wheels that [tool.uv.sources] pins.
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv \
+    && uv export --frozen --no-emit-project --format requirements-txt -o /tmp/req.txt \
+    && grep -vE "^(torch|torchvision|torchaudio|ultralytics)" /tmp/req.txt > /tmp/req_clean.txt \
+    && pip install --no-cache-dir --default-timeout=1000 -r /tmp/req_clean.txt
 
 # 4. Copy Code
 COPY src/ src/

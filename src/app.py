@@ -22,7 +22,7 @@ from fastapi.responses import Response
 from PIL import Image
 
 from src.auth import auth_enabled, require_api_key
-from src.ratelimit import PREDICT_LIMIT, REPORT_LIMIT, limiter
+from src.ratelimit import DRIFT_LIMIT, PREDICT_LIMIT, REPORT_LIMIT, limiter
 from src.ratelimit import install as install_rate_limit
 from src.uploads import enforce_content_length, read_upload
 
@@ -235,7 +235,8 @@ def monitoring_summary():
 
 
 @app.get("/drift", dependencies=[Depends(require_api_key)])
-def drift_summary():
+@limiter.limit(DRIFT_LIMIT)
+def drift_summary(request: Request):
     """Drift state under the name the other three projects use.
 
     This project originally exposed the same payload only at /monitoring, so
