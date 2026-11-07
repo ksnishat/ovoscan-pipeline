@@ -22,7 +22,7 @@ from fastapi.responses import Response
 from PIL import Image
 
 from src.auth import auth_enabled, require_api_key
-from src.ratelimit import DRIFT_LIMIT, PREDICT_LIMIT, REPORT_LIMIT, limiter
+from src.ratelimit import ADMIN_LIMIT, DRIFT_LIMIT, PREDICT_LIMIT, REPORT_LIMIT, limiter
 from src.ratelimit import install as install_rate_limit
 from src.uploads import enforce_content_length, read_upload
 
@@ -248,7 +248,8 @@ def drift_summary(request: Request):
 
 
 @app.post("/admin/reload-model", dependencies=[Depends(require_api_key)])
-def reload_model():
+@limiter.limit(ADMIN_LIMIT)
+def reload_model(request: Request):
     """Re-read the classifier weights from disk without restarting the API.
 
     The retraining DAG writes new weights, then calls this so the fresh model is
