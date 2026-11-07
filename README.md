@@ -234,9 +234,10 @@ the data is absent.
 ### 2. Environment Setup
 
 ```bash
-conda create -n ovoscan-env python=3.10 -y
-conda activate ovoscan-env
-pip install -r requirements.txt
+# uv reads pyproject.toml and installs the exact set pinned in uv.lock.
+pip install uv
+uv sync --extra dev
+source .venv/bin/activate
 ```
 
 ### 3. Train
