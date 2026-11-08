@@ -10,6 +10,7 @@ Usage:
     uvicorn src.app:app --host 0.0.0.0 --port 8001 --reload
 """
 
+import asyncio
 import io
 import os
 import time
@@ -204,7 +205,13 @@ async def analyze_report(request: Request, file: UploadFile = File(...)):
         contents = await read_upload(file)
         result = _detect_image(contents)
 
-        report = _generate_report(result["prediction"], result["confidence"])
+        # The RAG call is synchronous and takes seconds on CPU, so it runs in a
+        # worker thread. Calling it directly from this async handler blocked the
+        # event loop: a health check issued while a report was generating waited
+        # 1.8s, because every request queued behind the one holding the loop.
+        report = await asyncio.to_thread(
+            _generate_report, result["prediction"], result["confidence"]
+        )
 
         return {
             "filename": file.filename,

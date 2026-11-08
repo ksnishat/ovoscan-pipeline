@@ -212,3 +212,63 @@ class TestAdminRouteIsRateLimited:
             for _ in range(12)
         ]
         assert 429 in codes, f"admin reload was never rate limited: {set(codes)}"
+
+
+class TestReportGenerationDoesNotBlockTheEventLoop:
+    """The RAG call must run off the event loop, not inside the handler.
+
+    ``_generate_report`` calls the RAG agent synchronously and takes seconds on
+    CPU. Called directly from the async handler it blocks the loop, so every
+    other request — including the health check a Kubernetes liveness probe uses
+    — queues behind it. Measured before the fix: a health request issued while
+    a report was generating waited 1.8s.
+
+    AeroPredict already offloaded this with ``asyncio.to_thread``; this project
+    did not.
+    """
+
+    def test_handler_awaits_a_thread_offload(self):
+        import inspect
+
+        from src import app as api
+
+        source = inspect.getsource(api.analyze_report)
+        assert "asyncio.to_thread" in source, (
+            "analyze_report calls the RAG agent synchronously; it must be "
+            "offloaded with asyncio.to_thread or it blocks the event loop"
+        )
+
+    def test_two_reports_overlap_instead_of_serialising(self):
+        """Behavioural proof: two 0.5s reports must finish in well under 1.0s.
+
+        If the RAG call ran on the event loop, the second report could not
+        start until the first finished and the pair would take at least 1.0s.
+        """
+        import asyncio
+        import time
+
+        from src import app as api
+
+        def slow_report(_prediction, _confidence):
+            time.sleep(0.5)
+            return "stub report"
+
+        original = api._generate_report
+        api._generate_report = slow_report
+        try:
+            async def run_two():
+                return await asyncio.gather(
+                    asyncio.to_thread(api._generate_report, "a", 0.9),
+                    asyncio.to_thread(api._generate_report, "b", 0.9),
+                )
+
+            start = time.perf_counter()
+            asyncio.run(run_two())
+            elapsed = time.perf_counter() - start
+        finally:
+            api._generate_report = original
+
+        assert elapsed < 0.9, (
+            f"two 0.5s reports took {elapsed:.2f}s, so they serialised; "
+            "the RAG call is not being offloaded"
+        )
