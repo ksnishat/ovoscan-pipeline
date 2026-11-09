@@ -40,7 +40,7 @@
 🔒 **11-job CI** — Python 3.10 + 3.11 matrix, Bandit, pip-audit with a documented allowlist, Trivy SARIF, mypy, Terraform validate, Docker image build-and-serve, RAG eval
 🐛 **Compose fix** — `Dockerfile.mlflow` was referenced by `docker-compose.yml` but untracked; now committed
 🐛 **Test fixes** — FastAPI lifespan now runs in tests (`with TestClient(app) as c:`), ZenML 0.97 pipeline signature read via `entrypoint`, DVC CLI guarded with `shutil.which`
-✅ **Test suite green** — 172 unit + 9 live integration tests passing (was 7 failed)
+✅ **Test suite green** — 173 unit + 9 live integration tests passing (was 7 failed)
 
 ## Architecture
 
@@ -352,7 +352,7 @@ docker compose up -d      # mlflow, api, frontend, prometheus, grafana
 ## Running Tests
 
 ```bash
-uv run --frozen --extra dev python -m pytest tests/ -v   # 172 passed, 1 skipped, 9 deselected
+uv run --frozen --extra dev python -m pytest tests/ -v   # 173 passed, 1 skipped, 9 deselected
 ```
 
 The 10 skipped tests are integration tests that need the live docker stack. They
@@ -561,7 +561,7 @@ ovoscan-pipeline/
 │       ├── logging_config.py   # Structured JSON logging
 │       ├── monitoring.py       # Prometheus metrics + drift tracking
 │       └── config.py           # Pydantic settings
-├── tests/                      # 172 unit + 9 integration tests
+├── tests/                      # 173 unit + 9 integration tests
 ├── run_stack.sh                # Start API + MLflow + MinIO + Prometheus + Grafana
 ├── verify_stack.sh             # 7 live-stack health checks
 ├── k8s/                        # Kubernetes manifests
