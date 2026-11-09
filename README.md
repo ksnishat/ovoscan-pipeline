@@ -34,10 +34,13 @@
 📦 **pyproject.toml** — Modern Python packaging with dependencies, entry points, ruff/mypy config
 🔒 **Pre-commit hooks** — Ruff, mypy, black, trailing whitespace, YAML validation
 📊 **Model Monitoring** — Prometheus metrics for predictions, confidence, latency, class distribution; `/monitoring` endpoint
-☁️ **Terraform IaC** — Azure infrastructure as code (AKS, PostgreSQL, Redis, monitoring)
+☁️ **Terraform IaC** — Azure infrastructure as code (AKS, PostgreSQL, Redis, monitoring), `fmt`-clean and `validate`-checked in CI
+📊 **RAG retrieval evaluation** — A labelled question set scores `recall@k`, MRR and `hit@1` against the Chroma index; CI gates on `recall@4 >= 0.8`. It found that the Section 5 disposition table ranks 7th of 11 for its own question
+⚡ **Non-blocking LLM calls** — `/analyze-report` runs the RAG call in a worker thread; a health check issued during generation waited 1.8s before the fix and 1.9ms after
+🔒 **11-job CI** — Python 3.10 + 3.11 matrix, Bandit, pip-audit with a documented allowlist, Trivy SARIF, mypy, Terraform validate, Docker image build-and-serve, RAG eval
 🐛 **Compose fix** — `Dockerfile.mlflow` was referenced by `docker-compose.yml` but untracked; now committed
 🐛 **Test fixes** — FastAPI lifespan now runs in tests (`with TestClient(app) as c:`), ZenML 0.97 pipeline signature read via `entrypoint`, DVC CLI guarded with `shutil.which`
-✅ **Test suite green** — 86 unit + 9 live integration tests passing (was 7 failed)
+✅ **Test suite green** — 172 unit + 9 live integration tests passing (was 7 failed)
 
 ## Architecture
 
@@ -51,6 +54,8 @@ flowchart LR
     KB["Hatchery manual<br/>knowledge base"] --> RAG["RAG engine<br/>ChromaDB + LLM"]
     API --> RAG
     RAG --> REPORT["Quality report<br/>disposition guidance"]
+    RAG --> EVAL["rag_eval.py<br/>recall@k, MRR"]
+    EVAL --> CI["CI gate<br/>recall@4 >= 0.8"]
     API --> Prom["Prometheus"]
     Prom --> Graf["Grafana"]
 
@@ -59,12 +64,43 @@ flowchart LR
     classDef track fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px,color:#4a148c
     classDef serve fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px,color:#1b5e20
     classDef observe fill:#eceff1,stroke:#37474f,stroke-width:1px,color:#263238
+    classDef gate fill:#fffde7,stroke:#f9a825,stroke-width:1px,color:#f57f17
 
     class IMG,PRE,KB data
     class ZENML,YOLO train
     class MLflow track
     class API,RAG,REPORT serve
     class Prom,Graf observe
+    class EVAL,CI gate
+```
+
+### Request path
+
+The RAG call takes seconds on CPU. It runs in a worker thread so it cannot stall
+the event loop — before that fix, a health check issued during generation waited
+1.8 seconds.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as FastAPI
+    participant M as YOLOv8n-cls
+    participant R as ChromaDB
+    participant L as Ollama
+
+    C->>A: POST /analyze-report (image)
+    A->>M: classify egg
+    M-->>A: fertile / defect + confidence
+    alt class is fertile
+        A->>A: fixed "quality standard met" text
+    else defect
+        A->>R: retrieve(query, k=4)
+        R-->>A: 4 passages + scores
+        A->>L: prompt(context, question)
+        Note over A,L: asyncio.to_thread — event loop stays free
+        L-->>A: disposition guidance
+    end
+    A-->>C: prediction, confidence, technical_report
 ```
 
 ## Professional Feature Table
@@ -301,7 +337,7 @@ docker compose up -d      # mlflow, api, frontend, prometheus, grafana
 ## Running Tests
 
 ```bash
-PYTHONPATH=src pytest tests/ -v      # 30 passed, 10 skipped
+uv run --frozen --extra dev python -m pytest tests/ -v   # 172 passed, 1 skipped, 9 deselected
 ```
 
 The 10 skipped tests are integration tests that need the live docker stack. They
