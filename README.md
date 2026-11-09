@@ -156,6 +156,21 @@ the RAG agent, not the accuracy.
 The 97.2% figure is read directly from the training run's `results.csv`. The
 served checkpoint is the one produced by that run.
 
+## API endpoints
+
+All endpoints except `/` and `/metrics` require the `X-API-Key` header when auth
+is enabled. Rate limits come from `src/ratelimit.py`.
+
+| Method | Path | Limit | Purpose |
+|--------|------|-------|---------|
+| `GET` | `/` | none | Health probe. Reports `model_loaded`, `rag_available`, `device`, `auth_enabled` |
+| `POST` | `/predict` | 60/min | Upload an egg image, get fertile/defect class plus confidence |
+| `POST` | `/analyze-report` | 30/min | Classification plus disposition guidance from the RAG agent. A fertile result short-circuits to a fixed string without touching the LLM. The RAG call runs in a worker thread, so it does not block the event loop |
+| `GET` | `/drift` | 30/min | Drift state for the classification inputs |
+| `GET` | `/monitoring` | 30/min | Monitoring summary: prediction counts, confidence distribution, latency |
+| `POST` | `/admin/reload-model` | 5/min | Reload the classifier without restarting the process |
+| `GET` | `/metrics` | none | Prometheus exposition |
+
 ## Security
 
 | Control | Implementation |
@@ -491,6 +506,39 @@ KNOWLEDGE_BASE_PATH=/path/to/your/manual.txt python -m src.agent.rag
 > **Hardware note:** a 4 GB GPU cannot hold a 26B model. Use a small model
 > (1B-3B) for responsive RAG, or accept CPU-bound latency with a larger one.
 
+### Measuring retrieval quality
+
+Retrieval that *runs* and retrieval that *finds the right passage* are different
+claims, and only the second one is testable. `src/agent/rag_eval.py` scores the
+retriever against a labelled set of 10 questions. Each case names the section
+that should be retrieved and evidence tokens that must appear in the retrieved
+text — tokens chosen so a passage from the wrong section cannot satisfy them by
+accident. `"8 percent"` alone matches several sections of the manual, so the
+infertility case also requires `"Flock Health"`.
+
+```bash
+uv run --frozen python src/agent/rag_eval.py                  # report and gate
+uv run --frozen python src/agent/rag_eval.py --json           # machine-readable
+uv run --frozen python src/agent/rag_eval.py --min-recall 0.9  # stricter gate
+```
+
+Current result: `recall@4 = 0.900`, MRR 0.783, `hit@1` 0.700 across 10 cases.
+
+Retrieval metrics need only the embedding model and the index, so they run
+offline and deterministically and are gated in CI (`recall@4 >= 0.8`).
+Generation metrics are deliberately *not* gated: they need an LLM, a CI runner
+has none, and a faithfulness score that silently reports 0.0 when the model is
+absent is worse than no score.
+
+**The one failure is real, not a test artefact.** The Section 5 disposition
+table is intact in a single chunk — the code comment claiming it is preserved is
+accurate — but that chunk also carries the `SECTION 6` heading and `6.1`, which
+dilutes its embedding. Asked *"what happens when a fertile egg also has a shell
+defect?"*, the chunk holding the answer ranks **7th of 11** and is not retrieved
+at k=4. At a larger k it would be found. The fix is section-boundary chunking;
+it is documented here rather than quietly raising k, because raising k hides the
+problem instead of measuring it.
+
 ## Kubernetes Deployment
 
 ```bash
@@ -503,8 +551,7 @@ kubectl apply -f k8s/
 
 ```plaintext
 ovoscan-pipeline/
-├── models/                     # Serialized models
-├── notebooks/                  # Jupyter notebooks for EDA
+├── models/                     # Created when you copy a checkpoint in (not tracked)
 ├── src/
 │   ├── app.py                  # FastAPI backend + Prometheus instrumentation
 │   ├── pipeline/               # ZenML pipelines
@@ -514,7 +561,7 @@ ovoscan-pipeline/
 │       ├── logging_config.py   # Structured JSON logging
 │       ├── monitoring.py       # Prometheus metrics + drift tracking
 │       └── config.py           # Pydantic settings
-├── tests/                      # 30 unit + 9 integration tests
+├── tests/                      # 172 unit + 9 integration tests
 ├── run_stack.sh                # Start API + MLflow + MinIO + Prometheus + Grafana
 ├── verify_stack.sh             # 7 live-stack health checks
 ├── k8s/                        # Kubernetes manifests
