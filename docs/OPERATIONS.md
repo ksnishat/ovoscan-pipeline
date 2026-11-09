@@ -36,10 +36,7 @@ python3 provision_dashboards.py ovoscan   # datasource + dashboard
 | **MLflow** | http://localhost:5000 | N/A |
 | **Streamlit** | http://localhost:8504 | N/A |
 
-> **All four stacks at once:** the root `start_all_stacks.sh` starts the API,
-> MLflow, MinIO, Prometheus, Grafana, TLS proxy and this dashboard for every
-> project, then `verify_live_stack.sh` checks 32 endpoints. The ports in the
-> table above are the ones that script uses.
+> **Running the stack:** `./run_stack.sh` starts this project's API, MLflow, MinIO, Prometheus and Grafana. Dashboard: `streamlit run src/dashboard.py` (port 8504). Airflow and the feature store run through `docker compose`. The four-project orchestrator is kept in the author's workspace and is not part of this repository.
 | **ZenML** | http://localhost:8080 | N/A |
 
 ### Exposed metrics
@@ -185,25 +182,44 @@ kubectl apply -f k8s/
 ## Project Structure
 ```plaintext
 ovoscan-pipeline/
-├── models/                     # Created when you copy a checkpoint in (not tracked)
+├── dags/
+├── docs/
+├── helm-chart/
+├── infrastructure/
+├── k8s/
 ├── src/
-│   ├── app.py                  # FastAPI backend + Prometheus instrumentation
-│   ├── pipeline/               # ZenML pipelines
 │   ├── agent/
-│   │   └── rag.py              # ChromaDB + LangChain RAG quality assistant
-│   └── utils/
-│       ├── logging_config.py   # Structured JSON logging
-│       ├── monitoring.py       # Prometheus metrics + drift tracking
-│       └── config.py           # Pydantic settings
-├── tests/                      # 173 unit + 9 integration tests
-├── run_stack.sh                # Start API + MLflow + MinIO + Prometheus + Grafana
-├── verify_stack.sh             # 7 live-stack health checks
-├── k8s/                        # Kubernetes manifests
-├── helm-chart/                 # Helm chart for K8s
-├── infrastructure/docker/      # Dockerfiles (incl. Dockerfile.mlflow)
-├── environments/               # Conda environments
-├── .dvc/                       # DVC configuration
-└── docker-compose.yml          # Container orchestration
+│   ├── dash_app/
+│   ├── pipelines/
+│   ├── scripts/
+│   ├── utils/
+│   ├── __init__.py
+│   ├── app.py
+│   ├── auth.py
+│   ├── config.py
+│   ├── dashboard.py
+│   ├── ratelimit.py
+│   ├── retry.py
+│   ├── run_training.py
+│   ├── uploads.py
+│   └── versioning.py
+├── terraform/
+├── tests/
+├── docker-compose.yml
+├── Dockerfile
+├── Dockerfile.serve
+├── dvc.yaml
+├── load_test.py
+├── Makefile
+├── params.yaml
+├── provision_dashboards.py
+├── pyproject.toml
+├── README.md
+├── requirements-serve.txt
+├── run.py
+├── run_stack.sh
+├── uv.lock
+└── verify_stack.sh
 ```
 
 ## Troubleshooting

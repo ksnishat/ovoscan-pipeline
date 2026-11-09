@@ -146,7 +146,7 @@ All endpoints except `/` and `/metrics` require `X-API-Key`.
 
 ```bash
 uv sync --extra dev
-uv run python src/pipeline/run_pipeline.py    # ZenML: ingest → split → train
+uv run python src/run_training.py              # ZenML: ingest → split → train
 uv run uvicorn src.app:app --port 8003
 curl -X POST http://localhost:8003/predict \
      -H "X-API-Key: demo-secret-key" -F "file=@egg.jpg"
@@ -164,7 +164,7 @@ Dataset setup, ZenML steps and troubleshooting: **[docs/OPERATIONS.md](./docs/OP
 | TLS proxy | 8446 | | ZenML | 8080 |
 
 
-`start_all_stacks.sh` (workspace root) starts every service for all four projects; `verify_live_stack.sh` checks 32 endpoints.
+Run this project alone with `./run_stack.sh` (API, MLflow, MinIO, Prometheus, Grafana). Dashboard: `streamlit run src/dashboard.py` (port 8504). Airflow and the Postgres feature store run through `docker compose`. The four-project orchestrator used during development is kept in the author's workspace and is not part of this repository.
 
 ### Security
 
@@ -184,6 +184,18 @@ systems are *production-shaped*, not production-grade.
 |---|---|
 | Unit tests | **173** (9 integration tests run against the live stack) |
 | CI jobs | **12**: 3.10 + 3.11 matrix, ruff, mypy, Bandit, pip-audit, Trivy SARIF, Terraform validate, Docker build-and-serve, RAG eval, README-count check |
+
+## Roadmap
+
+1. **Fix the measured retrieval failure.** The Section 5 disposition table ranks
+   7th of 11 for its own question. Try section-boundary chunking, then gate
+   `recall@4` at 1.0 on the existing 10 cases.
+2. **Check confidence against the manual's threshold.** The manual escalates
+   when mean confidence over 100 eggs falls below 0.75. Compare the served
+   confidence distribution to that threshold; `/monitoring` already exposes it.
+3. **Test a second breed line or lighting condition.** The manual names both as
+   drift causes. The drift monitor exists but has not met real drift yet.
+4. **Run the retraining DAG end to end**, as with the other projects.
 
 ---
 
