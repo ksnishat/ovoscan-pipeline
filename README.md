@@ -17,7 +17,11 @@
 
 **OvoScan** is a production-shaped computer vision pipeline for automated visual inspection in manufacturing. It leverages **ZenML** for reproducible ML pipelines, **YOLOv8 classification** (97.2% top-1 accuracy) for defect grading, and **RAG via Ollama** for quality assessment reports. The platform supports both Docker Compose for local development and Kubernetes for production deployment.
 
-## Key Features
+---
+
+**At a glance** — Top-1 **97.2%** · 173 unit tests · 12 CI jobs · YOLOv8n-cls + ZenML + ChromaDB RAG + drift monitoring
+
+### What it does
 
 - **Computer Vision:** YOLOv8n-cls classification model (97.2% top-1 accuracy) for egg quality grading (classes: `fertile`, `infertile`).
 - **ZenML Pipelines:** Reproducible, versioned ML pipelines with experiment tracking.
@@ -28,22 +32,7 @@
 - **CI/CD Pipeline:** GitHub Actions for automated testing and deployment.
 - **GPU Support:** Optimized for NVIDIA GPU acceleration in K8s.
 
-
-### Recent Improvements (2026)
-🔧 **Makefile** — Standardized commands: `make test`, `make lint`, `make docker-up`, `make k8s-deploy`
-📦 **pyproject.toml** — Modern Python packaging with dependencies, entry points, ruff/mypy config
-🔒 **Pre-commit hooks** — Ruff, mypy, black, trailing whitespace, YAML validation
-📊 **Model Monitoring** — Prometheus metrics for predictions, confidence, latency, class distribution; `/monitoring` endpoint
-☁️ **Terraform IaC** — Azure infrastructure as code (AKS, PostgreSQL, Redis, monitoring), `fmt`-clean and `validate`-checked in CI
-📊 **RAG retrieval evaluation** — A labelled question set scores `recall@k`, MRR and `hit@1` against the Chroma index; CI gates on `recall@4 >= 0.8`. It found that the Section 5 disposition table ranks 7th of 11 for its own question
-⚡ **Non-blocking LLM calls** — `/analyze-report` runs the RAG call in a worker thread; a health check issued during generation waited 1.8s before the fix and 1.9ms after
-🔒 **11-job CI** — Python 3.10 + 3.11 matrix, Bandit, pip-audit with a documented allowlist, Trivy SARIF, mypy, Terraform validate, Docker image build-and-serve, RAG eval
-🐛 **Compose fix** — `Dockerfile.mlflow` was referenced by `docker-compose.yml` but untracked; now committed
-🐛 **Test fixes** — FastAPI lifespan now runs in tests (`with TestClient(app) as c:`), ZenML 0.97 pipeline signature read via `entrypoint`, DVC CLI guarded with `shutil.which`
-✅ **Test suite green** — 173 unit + 9 live integration tests passing (was 7 failed)
-🖥️ **Dashboard started by the stack script** — the Streamlit UI existed but nothing launched it outside docker-compose. `start_all_stacks.sh` now starts it on :8504 and `verify_live_stack.sh` checks it
-
-## Architecture
+### Architecture
 
 ```mermaid
 flowchart LR
@@ -74,9 +63,6 @@ flowchart LR
     class Prom,Graf observe
     class EVAL,CI gate
 ```
-
-### Request path
-
 The RAG call takes seconds on CPU. It runs in a worker thread so it cannot stall
 the event loop — before that fix, a health check issued during generation waited
 1.8 seconds.
@@ -104,36 +90,7 @@ sequenceDiagram
     A-->>C: prediction, confidence, technical_report
 ```
 
-## Professional Feature Table
-
-| Feature | Description | Business Value | German Industry Relevance |
-|---------|-------------|----------------|---------------------------|
-| **Defect Classification** | YOLOv8n-cls classification (97.2% top-1) for egg quality grading | Automates a first-pass visual triage of every egg | Aligns with ISO 9001 visual inspection standards |
-| **ZenML Pipelines** | Reproducible, versioned ML pipelines | Ensures model lineage and auditability | Supports German regulatory compliance (GDPR/DSGVO) |
-| **DVC Data Versioning** | Full dataset and model version control | Enables rollback and A/B model comparison | Meets German quality management (DIN EN ISO 9001) |
-| **GenAI Quality Reports** | ChromaDB RAG over a quality manual, then a local LLM writes the report | Removes the blank-page step from inspection write-ups | Meets German language requirements for B2B software |
-| **Multi-page Dashboard** | Plotly Dash with inspection, metrics, and model management | Enables real-time production line decisions | Matches German manufacturing dashboard standards |
-| **GPU Acceleration** | NVIDIA GPU passthrough in K8s | Enables high-throughput real-time inspection | Critical for German automotive production lines |
-| **Scalable Architecture** | Kubernetes with HPA and GPU scheduling | Handles peak production volumes | Compatible with German Industrie 4.0 cloud infrastructure |
-| **CI/CD Pipeline** | Automated testing, building, deployment | Ensures model quality and rapid iteration | Supports DevOps practices valued by German Mittelstand |
-
-## Why This Matters for German Industry
-
-Germany's manufacturing sector relies on quality inspection as a critical quality assurance function:
-
-1. **Industry 4.0 Integration**: The platform aligns with German Industrie 4.0 principles of interconnected manufacturing systems.
-
-2. **Zero-Defect Manufacturing**: German automotive and machinery manufacturers demand near-zero defect rates (QS-9000 / VDA 6.3).
-
-3. **DSGVO Compliance**: Local Ollama deployment ensures inspection images stay on-premise, complying with German data protection law.
-
-4. **Traceability**: ZenML pipeline versioning provides full audit trail required by German regulatory authorities.
-
-5. **Mittelstand Ready**: Docker Compose enables small manufacturing firms to adopt AI quality inspection without cloud dependency.
-
-6. **Energy Efficiency**: Edge AI deployment reduces data transfer, supporting German sustainability goals in manufacturing.
-
-## Verified Model Metrics
+### Verified results
 
 Reproduced locally on an NVIDIA RTX 3050 Ti (4 GB).
 
@@ -145,9 +102,6 @@ Reproduced locally on an NVIDIA RTX 3050 Ti (4 GB).
 | Base model | YOLOv8n-cls |
 | **Top-1 accuracy** | **97.2%** (`accuracy_top1 = 0.97193` in `ovoscan_train_runs/experiment_1/results.csv`) |
 | Pipeline | ZenML (ingest → validate → train → evaluate → register) |
-
-### Honest framing
-
 97.2% top-1 on 139 images has a wide confidence interval — roughly ±4 percentage
 points — so it should not be claimed to generalise without a larger held-out
 set. The task is also binary with visually distinct classes under candling, so a
@@ -157,447 +111,80 @@ the RAG agent, not the accuracy.
 The 97.2% figure is read directly from the training run's `results.csv`. The
 served checkpoint is the one produced by that run.
 
-## API endpoints
+### RAG, measured
 
-All endpoints except `/` and `/metrics` require the `X-API-Key` header when auth
-is enabled. Rate limits come from `src/ratelimit.py`.
+The quality assistant retrieves from a ChromaDB index over the hatchery manual,
+then a local LLM answers. Retrieval quality is scored, not assumed:
+
+| Metric | Value |
+|---|---|
+| `recall@4` | **0.900** (10 cases) |
+| MRR | 0.783 |
+| `hit@1` | 0.700 |
+
+CI gates on `recall@4 >= 0.8`. **The one failure is real:** the Section 5
+disposition table ranks 7th of 11 for its own question because the chunk also
+carries the Section 6 heading. Documented rather than hidden by raising k.
+Methodology: [docs/OPERATIONS.md](./docs/OPERATIONS.md).
+
+### API
+
+All endpoints except `/` and `/metrics` require `X-API-Key`.
 
 | Method | Path | Limit | Purpose |
 |--------|------|-------|---------|
-| `GET` | `/` | none | Health probe. Reports `model_loaded`, `rag_available`, `device`, `auth_enabled` |
-| `POST` | `/predict` | 60/min | Upload an egg image, get fertile/defect class plus confidence |
-| `POST` | `/analyze-report` | 30/min | Classification plus disposition guidance from the RAG agent. A fertile result short-circuits to a fixed string without touching the LLM. The RAG call runs in a worker thread, so it does not block the event loop |
-| `GET` | `/drift` | 30/min | Drift state for the classification inputs |
-| `GET` | `/monitoring` | 30/min | Monitoring summary: prediction counts, confidence distribution, latency |
-| `POST` | `/admin/reload-model` | 5/min | Reload the classifier without restarting the process |
+| `GET` | `/` | none | Health: `model_loaded`, `rag_available`, `device` |
+| `POST` | `/predict` | 60/min | Egg image in, fertile/defect + confidence out |
+| `POST` | `/analyze-report` | 30/min | Classification + disposition guidance (off the event loop) |
+| `GET` | `/drift` | 30/min | Drift state for classification inputs |
+| `GET` | `/monitoring` | 30/min | Prediction counts, confidence distribution, latency |
+| `POST` | `/admin/reload-model` | 5/min | Reload without a restart |
 | `GET` | `/metrics` | none | Prometheus exposition |
 
-## Security
+
+### Quickstart
+
+```bash
+uv sync --extra dev
+uv run python src/pipeline/run_pipeline.py    # ZenML: ingest → split → train
+uv run uvicorn src.app:app --port 8003
+curl -X POST http://localhost:8003/predict \
+     -H "X-API-Key: demo-secret-key" -F "file=@egg.jpg"
+```
+
+Dataset setup, ZenML steps and troubleshooting: **[docs/OPERATIONS.md](./docs/OPERATIONS.md)**.
+
+### Stack
+
+| Service | Port | | Service | Port |
+|---|---|---|---|---|
+| FastAPI | 8003 | | Prometheus | 9093 |
+| Streamlit UI | 8504 | | Grafana | 3000 |
+| MLflow | 5000 | | MinIO | 9006 |
+| TLS proxy | 8446 | | ZenML | 8080 |
+
+
+`start_all_stacks.sh` (workspace root) starts every service for all four projects; `verify_live_stack.sh` checks 32 endpoints.
+
+### Security
 
 | Control | Implementation |
-|---------|---------------|
-| API-key auth | `src/auth.py` — `X-API-Key` on `/predict`, `/drift`, `/admin/reload-model`. Off when `API_KEY` is unset. |
-| Constant-time comparison | `secrets.compare_digest`, so response timing does not leak the key length or prefix. |
-| TLS | `infrastructure/tls/` — nginx reverse proxy, TLSv1.2/1.3, `server_tokens off`, security headers. |
-| Upload limit | `src/uploads.py` — `Content-Length` rejected before the body is read; the bytes actually received are checked too. |
-| Health stays open | `/` and `/metrics` are unauthenticated so a load balancer and Prometheus can reach them. They expose no data. |
+|---|---|
+| Auth | `X-API-Key` via `secrets.compare_digest` (constant-time) |
+| TLS | nginx reverse proxy, TLSv1.2/1.3 |
+| Upload limits | `Content-Length` rejected before the body is read |
+| Rate limits | Per-endpoint, 429 on breach |
 
-### Enabling auth
+**Not in place:** RBAC, a secret manager, multi-node HA, a soak test. The
+systems are *production-shaped*, not production-grade.
 
-```bash
-export API_KEY="$(openssl rand -hex 32)"
-./run_stack.sh
-```
+### Tests and CI
 
-`run_stack.sh` defaults `API_KEY` to a demo value so the stack is secure by
-default. The key is part of the environment the watchdog restarts the API with,
-so it survives a crash — a key set only on the start command would be silently
-dropped.
-
-### Calling an authenticated endpoint
-
-```bash
-curl -H "X-API-Key: $API_KEY" -F "file=@sample.csv" http://localhost:8000/predict
-```
-
-### Over HTTPS
-
-```bash
-./infrastructure/tls/start_tls_proxy.sh
-curl -k -H "X-API-Key: $API_KEY" -F "file=@sample.csv" https://localhost:8443/predict
-```
-
-The certificate is self-signed, so `-k` is required with curl and a browser will
-warn. A real deployment would use a CA-issued certificate and terminate TLS at
-the load balancer.
-
-### Not in place
-
-No RBAC or per-user identity, no rate limiting, no secret manager (credentials
-are environment variables), and no audit log of who called `/admin/reload-model`.
+| | |
+|---|---|
+| Unit tests | **173** (9 integration tests run against the live stack) |
+| CI jobs | **12**: 3.10 + 3.11 matrix, ruff, mypy, Bandit, pip-audit, Trivy SARIF, Terraform validate, Docker build-and-serve, RAG eval, README-count check |
 
 ---
 
-## Production readiness
-
-This is a **production-shaped** system, not a production-hardened one. The
-distinction matters, so here is exactly where it stands.
-
-### What is in place
-
-| Capability | Status |
-|-----------|--------|
-| End-to-end MLOps loop | Airflow retrains, MLflow tracks, the API hot-swaps weights without a restart |
-| Drift detection | PSI against a training-time baseline, exposed at `/drift` and as Prometheus gauges |
-| Alerting | 5 Prometheus rules per project, verified loading and evaluating |
-| Authentication | `X-API-Key` on `/predict`, `/drift` and `/admin/reload-model` when `API_KEY` is set |
-| TLS | nginx reverse proxy, TLSv1.2/1.3, security headers (`infrastructure/tls/`) |
-| Upload limits | 10 MiB default, enforced before the body is read (`MAX_UPLOAD_BYTES`) |
-| Self-healing | Watchdog restarts the API and MLflow if they crash; containers use `restart: unless-stopped` |
-| Tests | Unit + live integration suites, run in CI |
-| Load tested | `python3 load_test.py` measures p50/p95/p99 and throughput against the running API |
-
-### What is not in place
-
-| Gap | Why it matters |
-|-----|---------------|
-| **No multi-tenancy or RBAC** | One shared API key. No per-user identity, quotas or audit trail. |
-| **No secret management** | Credentials are environment variables with demo defaults. A deployment needs Vault, SOPS or a cloud secret store. |
-| **Single node, no HA** | One host, one worker process per API. No replication, no failover. |
-| **No sustained soak test** | Load figures are a 60-request burst, not a multi-hour run. |
-| **Drift thresholds not tuned** | 0.10 / 0.25 are the conventional PSI bands, not calibrated to this data. |
-| **No model rollback** | The reload endpoint swaps weights forward only. A bad model needs a manual revert. |
-
-### The honest one-line summary
-
-> "Production-shaped: the full MLOps loop, drift detection, alerting, auth, TLS
-> and self-healing are all in place and verified. Not production-hardened: no
-> RBAC, no secret manager, single node, and the load numbers are a burst rather
-> than a soak test."
-
----
-
-## Quickstart
-
-### 1. Get the dataset
-
-The dataset is **Dataset new v6 (Dataset Baru Revisi)**, a Roboflow Universe
-dataset of egg images released under CC BY 4.0. It is not committed here.
-
-- [Dataset new on Roboflow Universe](https://universe.roboflow.com/skripsi-gqi1u/dataset-new-c9tqt)
-
-Download it in **YOLOv8 Classification** format and unzip it to the repository
-root, so the layout matches what the training script expects:
-
-```bash
-# after downloading and unzipping the classification export
-ls egg_dataset/
-# data.yaml  train/  valid/  test/
-ls egg_dataset/valid/images/ | head -3
-```
-
-The dataset is a classification layout (`valid/images/`, not `valid/defect/`),
-which is what `data.yaml` declares.
-
-**Without the dataset** you can still run the API, the tests and the load test:
-the model checkpoint is committed, and the integration tests skip cleanly when
-the data is absent.
-
-### 2. Environment Setup
-
-```bash
-# uv reads pyproject.toml and installs the exact set pinned in uv.lock.
-pip install uv
-uv sync --extra dev
-source .venv/bin/activate
-```
-
-### 3. Train
-
-The ZenML pipeline is the supported path — it handles ingest, validation, the
-YOLO layout, and MLflow logging:
-
-```bash
-python src/run_training.py
-```
-
-To run YOLO directly instead (bypassing ZenML):
-
-```bash
-python -c "from ultralytics import YOLO; \
-m = YOLO('yolov8n-cls.pt'); \
-m.train(data='egg_dataset', epochs=5, imgsz=224, batch=16)"
-```
-
-Copy the best checkpoint into `models/`:
-
-```bash
-cp runs/classify/train/weights/best.pt models/ovoscan_cls_best.pt
-```
-
-### 4. Run the ZenML pipeline
-
-```bash
-zenml init
-zenml stack register ovoscan_stack -a localhost -o localhost -d localhost
-python -m src.pipeline.training_pipeline
-```
-
-### 5. Start the API
-
-```bash
-PYTHONPATH=src uvicorn app:app --host 0.0.0.0 --port 8003
-```
-
-### 6. Verify
-
-```bash
-# The root path is the health endpoint; there is no /health route.
-curl http://localhost:8003/
-# {"status":"running","service":"ovoscan-ai-v2","model_loaded":true,"rag_available":true,"device":"cuda"}
-
-curl http://localhost:8003/metrics | grep ovoscan
-
-# The dataset is a classification layout: valid/images/, not valid/defect/.
-IMG=$(find egg_dataset/valid/images -type f | head -1)
-curl -X POST http://localhost:8003/predict -F "file=@$IMG"
-# {"filename":"...","prediction":"defect","confidence":0.997,"status":"success"}
-```
-
-### 7. Or launch the whole Docker stack
-
-```bash
-docker compose up -d      # mlflow, api, frontend, prometheus, grafana
-```
-
-## Running Tests
-
-```bash
-uv run --frozen --extra dev python -m pytest tests/ -v   # 173 passed, 1 skipped, 9 deselected
-```
-
-The 10 skipped tests are integration tests that need the live docker stack. They
-are excluded from CI (which has no model checkpoint or dataset) and run against
-real services instead of an in-process `TestClient`:
-
-```bash
-./run_stack.sh
-LIVE_STACK=1 pytest tests/test_integration_live.py -v   # 9 passed
-```
-
-They assert the API classifies a real image, that `/analyze-report` still returns
-a report when Ollama is down (template fallback, not a 500), that Prometheus is
-actually scraping the API (not merely healthy), and that MLflow, Grafana and
-MinIO are reachable.
-
-## Screenshots
-
-Captured from the running stack, not mocked up.
-
-### Grafana — model diagnostics
-
-![OvoScan Grafana dashboard](docs/screenshots/grafana-dashboard.png)
-
-### API — OpenAPI schema
-
-![OvoScan Swagger UI](docs/screenshots/api-swagger.png)
-
-## Monitoring & Live Demo
-
-```bash
-./run_stack.sh                   # API + MLflow + MinIO + Prometheus + Grafana
-python3 provision_dashboards.py ovoscan   # datasource + dashboard
-./verify_stack.sh                 # 7 checks, exit 0 when all pass
-```
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **FastAPI** | http://localhost:8003/docs | N/A |
-| **Prometheus** | http://localhost:9093 | N/A |
-| **Grafana** | http://localhost:3000 | `admin` / `admin` |
-| **MLflow** | http://localhost:5000 | N/A |
-| **Streamlit** | http://localhost:8504 | N/A |
-
-> **All four stacks at once:** the root `start_all_stacks.sh` starts the API,
-> MLflow, MinIO, Prometheus, Grafana, TLS proxy and this dashboard for every
-> project, then `verify_live_stack.sh` checks 32 endpoints. The ports in the
-> table above are the ones that script uses.
-| **ZenML** | http://localhost:8080 | N/A |
-
-### Exposed metrics
-
-| Metric | Type | Meaning |
-|--------|------|---------|
-| `ovoscan_predictions_total` | counter | Predictions, labelled by `class_label` |
-| `ovoscan_prediction_confidence` | histogram | Confidence distribution |
-| `ovoscan_prediction_latency_seconds` | histogram | Inference latency |
-| `ovoscan_model_loaded` | gauge | 1 when the model is loaded, 0 otherwise |
-| `ovoscan_inference_errors_total` | counter | Inference failures |
-| `ovoscan_class_distribution` | gauge | Rolling class distribution |
-| `ovoscan_prediction_drift_psi` | gauge | PSI of the live prediction distribution vs the validation baseline |
-| `ovoscan_drift_status` | gauge | 0 stable, 1 moderate, 2 significant, -1 unknown |
-
-### Drift detection
-
-`ovoscan_class_distribution` is a rolling counter, not a drift metric: it has no
-baseline to compare against, so it cannot detect drift on its own. PSI is now
-computed against a reference distribution and exposed as
-`ovoscan_prediction_drift_psi`. `GET /monitoring` reports `drift_psi`,
-`drift_status` and the baseline in use.
-
-The baseline defaults to a balanced fertile/infertile split and is overridable
-via `set_drift_baseline` so a retrained model can ship its own reference.
-
-Verified discrimination: a balanced stream gives PSI 0.0 (stable) while a
-95%-fertile stream gives 1.33 (significant).
-
-### Scheduled retraining
-
-`dags/retraining_pipeline.py` runs weekly: retrain via the ZenML pipeline →
-reload the serving model → report drift.
-
-```bash
-docker compose up -d airflow-postgres airflow-webserver airflow-scheduler
-docker exec ovoscan_airflow_scheduler airflow dags unpause ovoscan_continuous_learning
-docker exec ovoscan_airflow_scheduler airflow dags trigger ovoscan_continuous_learning
-```
-
-Airflow UI: http://localhost:8084 (`admin` / `admin`).
-
-The pipeline runs in a subprocess (`src/run_training.py`). ZenML logs through the
-root logger and Airflow's `logging_mixin` re-logs its own stream, which forms a
-cycle that recurses until Python hits its recursion limit. A subprocess gives
-the pipeline its own logging state and also isolates heavy training from the
-scheduler process.
-
-## RAG Quality Assistant
-
-`src/agent/rag.py` implements a **ChromaDB + LangChain** retrieval pipeline over
-a hatchery quality-control manual, using `sentence-transformers/all-MiniLM-L6-v2`
-embeddings and a local Ollama LLM.
-
-The knowledge base ships with the repository at
-`knowledge_base/hatchery_manual.txt`, so `rag_available` is **`true`** out of the
-box. The API reports it in the health response:
-
-```bash
-curl http://localhost:8003/
-# {"status":"running","service":"ovoscan-ai-v2","model_loaded":true,"rag_available":true,"device":"cuda"}
-```
-
-### How it works
-
-1. The manual is split with `RecursiveCharacterTextSplitter` (800 chars, 120
-   overlap), splitting on section boundaries first so the disposition tables
-   stay intact.
-2. Chunks are embedded and persisted to a ChromaDB collection at
-   `data/chroma/` — built once, reused across restarts.
-3. A defect query retrieves the top 4 chunks, which are injected into a
-   criteria / action / escalation prompt.
-4. The local LLM answers **only** from the retrieved context.
-
-### Verified behaviour
-
-Asking about an infertile egg returns:
-
-```
-1. CRITERIA - The manual does not specify the criteria that identify an
-   infertile egg (it only lists visual indicators for fertile eggs).
-2. ACTION - Remove the egg from the incubation stream immediately and record
-   the source flock identifier and collection date.
-3. ESCALATION - If the infertility rate for a single flock exceeds 8 percent
-   over a rolling 7-day window.
-```
-
-The 8 percent threshold appears in Section 6.1 of the manual and nowhere in the
-prompt — so this is genuine retrieval, not the model reciting training data.
-
-### Configuration
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `KNOWLEDGE_BASE_PATH` | `knowledge_base/hatchery_manual.txt` | Manual to index |
-| `CHROMA_PERSIST_DIR` | `data/chroma` | Vector store location |
-| `CHROMA_COLLECTION` | `hatchery_rules` | Collection name |
-| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Embedding model |
-| `OLLAMA_MODEL` | `llama3.2` | Generation model |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama endpoint |
-
-To index your own manual instead:
-
-```bash
-KNOWLEDGE_BASE_PATH=/path/to/your/manual.txt python -m src.agent.rag
-```
-
-> **Hardware note:** a 4 GB GPU cannot hold a 26B model. Use a small model
-> (1B-3B) for responsive RAG, or accept CPU-bound latency with a larger one.
-
-### Measuring retrieval quality
-
-Retrieval that *runs* and retrieval that *finds the right passage* are different
-claims, and only the second one is testable. `src/agent/rag_eval.py` scores the
-retriever against a labelled set of 10 questions. Each case names the section
-that should be retrieved and evidence tokens that must appear in the retrieved
-text — tokens chosen so a passage from the wrong section cannot satisfy them by
-accident. `"8 percent"` alone matches several sections of the manual, so the
-infertility case also requires `"Flock Health"`.
-
-```bash
-uv run --frozen python src/agent/rag_eval.py                  # report and gate
-uv run --frozen python src/agent/rag_eval.py --json           # machine-readable
-uv run --frozen python src/agent/rag_eval.py --min-recall 0.9  # stricter gate
-```
-
-Current result: `recall@4 = 0.900`, MRR 0.783, `hit@1` 0.700 across 10 cases.
-
-Retrieval metrics need only the embedding model and the index, so they run
-offline and deterministically and are gated in CI (`recall@4 >= 0.8`).
-Generation metrics are deliberately *not* gated: they need an LLM, a CI runner
-has none, and a faithfulness score that silently reports 0.0 when the model is
-absent is worse than no score.
-
-**The one failure is real, not a test artefact.** The Section 5 disposition
-table is intact in a single chunk — the code comment claiming it is preserved is
-accurate — but that chunk also carries the `SECTION 6` heading and `6.1`, which
-dilutes its embedding. Asked *"what happens when a fertile egg also has a shell
-defect?"*, the chunk holding the answer ranks **7th of 11** and is not retrieved
-at k=4. At a larger k it would be found. The fix is section-boundary chunking;
-it is documented here rather than quietly raising k, because raising k hides the
-problem instead of measuring it.
-
-## Kubernetes Deployment
-
-```bash
-helm install ovoscan ./helm-chart
-# or
-kubectl apply -f k8s/
-```
-
-## Project Structure
-
-```plaintext
-ovoscan-pipeline/
-├── models/                     # Created when you copy a checkpoint in (not tracked)
-├── src/
-│   ├── app.py                  # FastAPI backend + Prometheus instrumentation
-│   ├── pipeline/               # ZenML pipelines
-│   ├── agent/
-│   │   └── rag.py              # ChromaDB + LangChain RAG quality assistant
-│   └── utils/
-│       ├── logging_config.py   # Structured JSON logging
-│       ├── monitoring.py       # Prometheus metrics + drift tracking
-│       └── config.py           # Pydantic settings
-├── tests/                      # 173 unit + 9 integration tests
-├── run_stack.sh                # Start API + MLflow + MinIO + Prometheus + Grafana
-├── verify_stack.sh             # 7 live-stack health checks
-├── k8s/                        # Kubernetes manifests
-├── helm-chart/                 # Helm chart for K8s
-├── infrastructure/docker/      # Dockerfiles (incl. Dockerfile.mlflow)
-├── environments/               # Conda environments
-├── .dvc/                       # DVC configuration
-└── docker-compose.yml          # Container orchestration
-```
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| **YOLO model not found** | Train with the command above and copy `best.pt` to `models/ovoscan_cls_best.pt` |
-| **`docker compose up` → missing `Dockerfile.mlflow`** | Fixed in this commit — the file is now tracked in git |
-| **Tests fail with "model not loaded"** | `TestClient(app)` must be used as a context manager so the FastAPI lifespan runs: `with TestClient(app) as c:` |
-| **ZenML pipeline signature introspection fails** | ZenML 0.97 wraps the pipeline; read `pipeline.entrypoint` for the real signature |
-| **`rag_available: false`** | The knowledge base is missing or the RAG deps failed to import. Check `knowledge_base/hatchery_manual.txt` exists and that `chromadb`, `langchain-chroma` and `langchain-huggingface` are installed |
-| **RAG responses are very slow** | A large Ollama model is spilling to CPU. Check `ollama ps` — if the PROCESSOR column shows a high CPU percentage, switch to a smaller model via `OLLAMA_MODEL` |
-| **ZenML stack not registered** | Run `zenml stack register` with the correct orchestrator/artifact/metadata stores |
-| **DVC remote not accessible** | Check the DVC remote storage configuration (S3/GCS/Azure) |
-| **Ollama connection refused** | Verify Ollama is running on port 11434 |
-| **Grafana shows "No data"** | The provisioning or dashboards directory is not mounted, or Grafana is not on the `mlops-stack` network so it cannot resolve `prom_<project>` | Run `python3 provision_dashboards.py` — it reports which of the two it is |
-| **GPU not detected in K8s** | Install the NVIDIA device plugin and ensure GPU nodes are available |
-
-## Author
-
-Developed by **Khaled Saifullah**.
-
-For collaboration, feature requests, or bug reports, please open an issue or contact the maintainer via the repository issue tracker.
-
-**Last Updated**: October 2026
+**Author** — Khaled Saifullah · [GitHub](https://github.com/ksnishat)
