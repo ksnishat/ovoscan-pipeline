@@ -41,6 +41,7 @@
 🐛 **Compose fix** — `Dockerfile.mlflow` was referenced by `docker-compose.yml` but untracked; now committed
 🐛 **Test fixes** — FastAPI lifespan now runs in tests (`with TestClient(app) as c:`), ZenML 0.97 pipeline signature read via `entrypoint`, DVC CLI guarded with `shutil.which`
 ✅ **Test suite green** — 173 unit + 9 live integration tests passing (was 7 failed)
+🖥️ **Dashboard started by the stack script** — the Streamlit UI existed but nothing launched it outside docker-compose. `start_all_stacks.sh` now starts it on :8504 and `verify_live_stack.sh` checks it
 
 ## Architecture
 
@@ -395,7 +396,12 @@ python3 provision_dashboards.py ovoscan   # datasource + dashboard
 | **Prometheus** | http://localhost:9093 | N/A |
 | **Grafana** | http://localhost:3000 | `admin` / `admin` |
 | **MLflow** | http://localhost:5000 | N/A |
-| **Streamlit** | http://localhost:8501 | N/A |
+| **Streamlit** | http://localhost:8504 | N/A |
+
+> **All four stacks at once:** the root `start_all_stacks.sh` starts the API,
+> MLflow, MinIO, Prometheus, Grafana, TLS proxy and this dashboard for every
+> project, then `verify_live_stack.sh` checks 32 endpoints. The ports in the
+> table above are the ones that script uses.
 | **ZenML** | http://localhost:8080 | N/A |
 
 ### Exposed metrics
