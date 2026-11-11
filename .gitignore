@@ -41,7 +41,7 @@ egg_dataset/
 yolo_dataset_cache/
 data/
 models/
-serving/
+serving/*
 *.pth
 *.pt
 *.pkl
@@ -101,3 +101,7 @@ crash.log
 # Generated TLS material: never commit a private key.
 infrastructure/tls/*.key
 infrastructure/tls/*.crt
+
+# Keep the placeholder so Dockerfile.serve can COPY the directory in a
+# fresh checkout, where the real weights are absent.
+!serving/.gitkeep

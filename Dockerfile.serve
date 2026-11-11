@@ -38,6 +38,13 @@ COPY --from=builder /install /usr/local
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 COPY src/ ./src/
+# serving/ is gitignored, so a CI checkout has no such directory and a bare
+# COPY fails with "not found". Create it first so the image builds without
+# the checkpoint; the API reports model_loaded=false and serves its fallback.
+# COPY reads its source from the build context, not the image, so a
+# `RUN mkdir` cannot satisfy it. serving/ is gitignored and absent in CI;
+# the tracked serving/.gitkeep makes the COPY succeed, and a local build
+# with real weights copies them over it.
 COPY serving/ ./serving/
 COPY knowledge_base/ ./knowledge_base/
 
