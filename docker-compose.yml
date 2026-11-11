@@ -6,7 +6,11 @@ services:
     image: ollama/ollama:latest
     container_name: ovoscan_ollama
     ports:
-      - "11434:11434"
+      # 11435 on the host, not 11434: InfraLens also publishes 11434, so with
+      # both stacks up the second one fails with "port is already allocated".
+      # The container still listens on 11434, which is what OLLAMA_HOST below
+      # and the healthcheck use.
+      - "11435:11434"
     volumes:
       - ollama_storage:/root/.ollama
     deploy:

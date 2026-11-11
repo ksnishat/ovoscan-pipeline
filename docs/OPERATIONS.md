@@ -129,7 +129,7 @@ prompt — so this is genuine retrieval, not the model reciting training data.
 | `CHROMA_COLLECTION` | `hatchery_rules` | Collection name |
 | `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Embedding model |
 | `OLLAMA_MODEL` | `llama3.2` | Generation model |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama endpoint |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama endpoint. The compose service publishes **11435** on the host (11434 collides with InfraLens) but listens on 11434 inside the container, which is what this variable points at when set to the service name |
 
 To index your own manual instead:
 
@@ -233,6 +233,6 @@ ovoscan-pipeline/
 | **RAG responses are very slow** | A large Ollama model is spilling to CPU. Check `ollama ps` — if the PROCESSOR column shows a high CPU percentage, switch to a smaller model via `OLLAMA_MODEL` |
 | **ZenML stack not registered** | Run `zenml stack register` with the correct orchestrator/artifact/metadata stores |
 | **DVC remote not accessible** | Check the DVC remote storage configuration (S3/GCS/Azure) |
-| **Ollama connection refused** | Verify Ollama is running on port 11434 |
+| **Ollama connection refused** | Verify Ollama is running. Host daemon: 11434. This project's compose service: **11435** on the host, 11434 inside the container |
 | **Grafana shows "No data"** | The provisioning or dashboards directory is not mounted, or Grafana is not on the `mlops-stack` network so it cannot resolve `prom_<project>` | Run `python3 provision_dashboards.py` — it reports which of the two it is |
 | **GPU not detected in K8s** | Install the NVIDIA device plugin and ensure GPU nodes are available |
