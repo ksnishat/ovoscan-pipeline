@@ -58,11 +58,14 @@ spec:
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10
+          {{- if .Values.persistence.enabled }}
           volumeMounts:
             - name: model-storage
               mountPath: /app/models
             - name: dvc-storage
               mountPath: /app/.dvc
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
       volumes:
         - name: model-storage
           persistentVolumeClaim:
@@ -70,3 +73,4 @@ spec:
         - name: dvc-storage
           persistentVolumeClaim:
             claimName: {{ include "ovoscan.fullname" . }}-dvc-pvc
+      {{- end }}
