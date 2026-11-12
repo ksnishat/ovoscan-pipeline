@@ -102,6 +102,8 @@ crash.log
 infrastructure/tls/*.key
 infrastructure/tls/*.crt
 
-# Keep the placeholder so Dockerfile.serve can COPY the directory in a
-# fresh checkout, where the real weights are absent.
+# The trained weights ARE tracked. Dockerfile.serve COPYs serving/, and a
+# fresh clone that only had .gitkeep built an image with no model. The YOLOv8
+# classifier is ~2.9 MB, which is acceptable in git.
 !serving/.gitkeep
+!serving/model.pt
