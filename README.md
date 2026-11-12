@@ -19,7 +19,7 @@
 
 ---
 
-**At a glance** — Top-1 **97.2%** · 173 unit tests · 12 CI jobs · YOLOv8n-cls + ZenML + ChromaDB RAG + drift monitoring
+**At a glance** — Top-1 **97.2%** · 173 unit tests · 13 CI jobs · YOLOv8n-cls + ZenML + ChromaDB RAG + drift monitoring
 
 ### What it does
 
