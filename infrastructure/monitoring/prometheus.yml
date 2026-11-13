@@ -22,6 +22,13 @@ scrape_configs:
     metrics_path: '/metrics'
     scrape_interval: 30s
 
+  # StatsD exporter — translates Airflow StatsD UDP to Prometheus HTTP.
+  - job_name: 'airflow'
+    static_configs:
+      - targets: ['statsd_exporter:9102']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
   # Node Exporter (host metrics)
   - job_name: 'node_exporter'
     static_configs:
