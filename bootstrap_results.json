@@ -1,0 +1,8 @@
+{
+  "point_estimate": 1.0,
+  "ci_lower": 1.0,
+  "ci_upper": 1.0,
+  "confidence": 0.95,
+  "n_iterations": 1000,
+  "n_samples": 40
+}
