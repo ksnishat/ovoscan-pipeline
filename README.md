@@ -15,15 +15,15 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![OS: Linux](https://img.shields.io/badge/OS-Linux-2F2F2F?style=flat)
 
-**OvoScan** is a production-shaped computer vision pipeline for automated visual inspection in manufacturing. It leverages **ZenML** for reproducible ML pipelines, **YOLOv8 classification** (97.2% top-1 (95% CI: 100.0% - 100.0% on validation set) accuracy) for defect grading, and **RAG via Ollama** for quality assessment reports. The platform supports both Docker Compose for local development and Kubernetes for production deployment.
+**OvoScan** is a production-shaped computer vision pipeline for automated visual inspection in manufacturing. It leverages **ZenML** for reproducible ML pipelines, **YOLOv8 classification** (100% top-1 on a 40-image validation set) for egg quality grading, and **RAG via Ollama** for quality assessment reports. The platform supports both Docker Compose for local development and Kubernetes for production deployment.
 
 ---
 
-**At a glance** — Top-1 **97.2%** · 172 unit tests · 14 CI jobs · YOLOv8n-cls + ZenML + ChromaDB RAG + drift monitoring
+**At a glance** — Top-1 **100%** (40-image validation set) · 178 unit tests · 14 CI jobs · YOLOv8n-cls + ZenML + ChromaDB RAG + drift monitoring
 
 ### What it does
 
-- **Computer Vision:** YOLOv8n-cls classification model (97.2% top-1 accuracy) for egg quality grading (classes: `fertile`, `infertile`).
+- **Computer Vision:** YOLOv8n-cls classification model (100% top-1 on the 40-image validation set) for egg quality grading (classes: `fertile`, `infertile`).
 - **ZenML Pipelines:** Reproducible, versioned ML pipelines with experiment tracking.
 - **GenAI Quality Reports:** ChromaDB retrieval over a quality manual, then a local LLM via Ollama writes the report (with template fallback).
 - **Multi-page Dashboard:** Plotly Dash for professional inspection visualization.
@@ -97,19 +97,30 @@ Reproduced locally on an NVIDIA RTX 3050 Ti (4 GB).
 | Metric | Value |
 |--------|-------|
 | Dataset | `egg_dataset/` (YOLOv8 classification layout: `train/`, `valid/`, `test/`) |
-| Labelled images | 139 train (72 fertile / 67 infertile) |
+| Labelled images | 139 train (72 fertile / 67 infertile), 40 valid |
 | Classes | `fertile`, `infertile` (from `egg_dataset/data.yaml`) |
 | Base model | YOLOv8n-cls |
-| **Top-1 accuracy** | **97.2%** (`accuracy_top1 = 0.97193` in `ovoscan_train_runs/experiment_1/results.csv`) |
+| **Top-1 accuracy** | **100%** on the 40-image validation set (40/40, 95% CI [100%, 100%]). The training run reported 97.2%. |
 | Pipeline | ZenML (ingest → validate → train → evaluate → register) |
-97.2% top-1 on 139 images has a wide confidence interval — roughly ±4 percentage
-points — so it should not be claimed to generalise without a larger held-out
-set. The task is also binary with visually distinct classes under candling, so a
-high number is expected. The interesting engineering here is the pipeline and
-the RAG agent, not the accuracy.
 
-The 97.2% figure is read directly from the training run's `results.csv`. The
-served checkpoint is the one produced by that run.
+**Read this before quoting the accuracy.** The 40-image validation set is small
+enough that a perfect score is not evidence of generalisation — the bootstrap
+95% CI collapses to [100%, 100%] precisely because every resample is also
+perfect. The honest statement is "100% on 40 held-out images", not "100%
+accurate". The 20-image test split ships with **empty label files**, so it is a
+blind set and cannot be scored locally.
+
+The task is binary with visually distinct classes under candling, so a high
+number is expected. The interesting engineering here is the pipeline and the
+RAG agent, not the accuracy.
+
+**Class-index inversion — a real trap.** The served checkpoint reports
+`{0: 'defect', 1: 'fertile'}` while `egg_dataset/data.yaml` declares
+`['fertile', 'infertile']`. The two orderings are opposite, so a naive
+comparison scores **0/40** — every prediction is counted wrong. The evaluation
+in `tests/test_model_quality.py` inverts the index (`1 - pred`) before
+comparing, which is what produces 40/40. Any new evaluation code must do the
+same, or it will report 0% on a perfect model.
 
 ### RAG, measured
 
@@ -182,7 +193,7 @@ systems are *production-shaped*, not production-grade.
 
 | | |
 |---|---|
-| Unit tests | **173** (9 integration tests run against the live stack) |
+| Unit tests | **178** (9 integration tests run against the live stack) |
 | CI jobs | **12**: 3.10 + 3.11 matrix, ruff, mypy, Bandit, pip-audit, Trivy SARIF, Terraform validate, Docker build-and-serve, RAG eval, README-count check |
 
 ## Roadmap
